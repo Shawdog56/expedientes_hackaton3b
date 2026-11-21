@@ -1,7 +1,23 @@
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: expedientes
+      POSTGRES_PASSWORD: expedientes
+      POSTGRES_DB: expedientes
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U expedientes -d expedientes"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
   backend:
     build: ./backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app"
     ports:
       - "8000:8000"
     env_file:
@@ -9,8 +25,12 @@ services:
         required: false
     volumes:
       - ./backend:/app
+      - expedientes_data:/data/expedientes
     environment:
       WATCHFILES_FORCE_POLLING: "true"
+    depends_on:
+      db:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -24,3 +44,7 @@ services:
       CHOKIDAR_USEPOLLING: "true"
     depends_on:
       - backend
+
+volumes:
+  expedientes_data:
+  pgdata:
