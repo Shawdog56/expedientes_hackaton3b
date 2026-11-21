@@ -11,7 +11,10 @@ import pymupdf
 import numpy as np
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
-from ocr_quality import SUPPORTED_EXTENSIONS, read_image, read_page, arrange_blocks
+try:
+    from ocr_quality import SUPPORTED_EXTENSIONS, read_image, read_page, arrange_blocks
+except ImportError:
+    from app.agents.prueba3b.ocr_quality import SUPPORTED_EXTENSIONS, read_image, read_page, arrange_blocks
 
 
 class Engine(Protocol):

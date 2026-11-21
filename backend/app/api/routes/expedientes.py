@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -104,7 +105,7 @@ def reclasificar_documento(
 
 @router.post("/expedientes/analizar")
 async def analizar_expediente(body: AnalizarExpedienteRequest) -> dict[str, Any]:
-    """Endpoint principal de auditoría por JSON de textos:
+    """Endpoint de auditoría directa por JSON de textos:
 
     1. Clasifica y extrae características de cada documento con LangChain.
     2. Valida datos faltantes y vigencia del predial.
@@ -122,39 +123,79 @@ async def analizar_expediente(body: AnalizarExpedienteRequest) -> dict[str, Any]
 async def analizar_archivos_subidos(
     archivos: list[UploadFile] = File(
         ...,
-        description="Hasta 4 archivos de texto (.txt) correspondientes a los documentos del expediente.",
+        description="Archivos PDF, imágenes (JPG, PNG) o texto (.txt) del expediente.",
     ),
     anio_referencia: Optional[int] = Form(
         None,
         description="Año de referencia fiscal para evaluar vigencia.",
     ),
 ) -> dict[str, Any]:
-    """Permite subir directamente archivos .txt o extraídos desde el frontend / drag-and-drop
-    y procesarlos a través de toda la cadena de auditoría.
+    """Permite subir directamente archivos PDF, JPG, PNG o TXT:
+
+    1. El agente OCR extrae el texto de cada archivo (digital u OCR con PaddleOCR).
+    2. Transporta los textos al ClasificadorAgent para su clasificación y extracción.
+    3. Ejecuta la validación determinista y la validación cruzada.
+    4. Devuelve el veredicto y reporte integral.
     """
     if not archivos:
         raise HTTPException(status_code=400, detail="No se subieron archivos.")
 
-    textos: list[str] = []
-    nombres: list[str] = []
-
+    entradas: list[tuple[str, bytes]] = []
     for arch in archivos:
         contenido = await arch.read()
-        texto = contenido.decode("utf-8", errors="ignore").strip()
-        if texto:
-            textos.append(texto)
-            nombres.append(arch.filename or "archivo_sin_nombre")
+        nombre = arch.filename or "archivo_sin_nombre"
+        if contenido:
+            entradas.append((nombre, contenido))
 
-    if not textos:
+    if not entradas:
         raise HTTPException(
             status_code=400,
-            detail="Los archivos subidos están vacíos o no contienen texto legible.",
+            detail="Los archivos subidos están vacíos o no contienen contenido legible.",
         )
 
     service = ExpedienteService()
-    resultado = await service.analizar_expediente(
-        textos=textos,
+    resultado = await service.auditar_archivos(
+        archivos=entradas,
         anio_referencia=anio_referencia,
     )
-    resultado["archivos_recibidos"] = nombres
+    return resultado
+
+
+@router.post("/expedientes/{expediente_id}/auditar")
+async def auditar_expediente_guardado(
+    expediente_id: uuid.UUID,
+    anio_referencia: Optional[int] = None,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Audita un expediente previamente cargado en el sistema y guardado en base de datos:
+
+    1. Carga los documentos físicos asociados desde el almacenamiento local.
+    2. Recupera el texto de cada documento mediante el agente OCR.
+    3. Transporta los textos al ClasificadorAgent y al ValidadorCruzado.
+    4. Devuelve el veredicto oficial de Tiendas 3B.
+    """
+    try:
+        expediente = svc.obtener_expediente(db, expediente_id)
+    except LookupError:
+        raise HTTPException(404, "Expediente no encontrado") from None
+
+    documentos_fisicos: list[tuple[str, Path]] = []
+    for doc in expediente.documentos:
+        p = Path(doc.ruta_almacenamiento)
+        if p.exists():
+            documentos_fisicos.append((doc.nombre, p))
+
+    if not documentos_fisicos:
+        raise HTTPException(
+            status_code=422,
+            detail="El expediente no cuenta con archivos físicos disponibles en disco para auditar.",
+        )
+
+    service = ExpedienteService()
+    resultado = await service.auditar_archivos(
+        archivos=documentos_fisicos,
+        anio_referencia=anio_referencia,
+    )
+    resultado["expediente_id"] = str(expediente_id)
+    resultado["nombre_expediente"] = expediente.nombre
     return resultado
