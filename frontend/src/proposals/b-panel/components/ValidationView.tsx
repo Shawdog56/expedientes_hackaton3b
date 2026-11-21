@@ -129,25 +129,15 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
             </button>
           </div>
 
-          <div
-            role="tabpanel"
-            id="panel-validaciones"
-            aria-labelledby="tab-validaciones"
-            hidden={pestana !== 'validaciones'}
-            className="pt-4"
-          >
-            {bloqueValidaciones}
-          </div>
-
-          <div
-            role="tabpanel"
-            id="panel-competencia"
-            aria-labelledby="tab-competencia"
-            hidden={pestana !== 'competencia'}
-            className="pt-4"
-          >
-            <CompetitionTab />
-          </div>
+          {pestana === 'validaciones' ? (
+            <div role="tabpanel" id="panel-validaciones" aria-labelledby="tab-validaciones" className="pt-4">
+              {bloqueValidaciones}
+            </div>
+          ) : (
+            <div role="tabpanel" id="panel-competencia" aria-labelledby="tab-competencia" className="pt-4">
+              <CompetitionTab />
+            </div>
+          )}
         </div>
       ) : (
         bloqueValidaciones
