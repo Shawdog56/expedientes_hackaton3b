@@ -1,3 +1,4 @@
+import { CircleCheck } from 'lucide-react';
 import { ETAPAS, type Etapa, type EstadoValidacion } from '../../../shared/validationRules';
 import { EstadoIcono } from './EstadoIcono';
 
@@ -5,11 +6,24 @@ interface Props {
   etapaActual: Etapa | null;
   etapasCompletadas: Etapa[];
   progreso: number;
+  /** Al terminar, se reemplaza la barra completa por una línea discreta. */
+  compacto: boolean;
 }
 
-export function StageBar({ etapaActual, etapasCompletadas, progreso }: Props) {
+const CLASE_TRANSICION = 'motion-reduce:animate-none animate-[fade-in_200ms_ease-in-out]';
+
+export function StageBar({ etapaActual, etapasCompletadas, progreso, compacto }: Props) {
+  if (compacto) {
+    return (
+      <p className={`flex items-center gap-2 text-[13px] text-muted ${CLASE_TRANSICION}`}>
+        <CircleCheck className="h-4 w-4 shrink-0 text-ok" aria-hidden="true" />
+        Análisis completo · {ETAPAS.length} etapas
+      </p>
+    );
+  }
+
   return (
-    <div>
+    <div className={CLASE_TRANSICION}>
       <ol className="flex flex-wrap items-center gap-x-1 gap-y-3">
         {ETAPAS.map((etapa, indice) => {
           const completada = etapasCompletadas.includes(etapa.id);

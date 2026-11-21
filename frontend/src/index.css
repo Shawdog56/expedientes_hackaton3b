@@ -16,3 +16,12 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

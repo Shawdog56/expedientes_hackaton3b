@@ -15,10 +15,10 @@ interface Props {
   onReiniciar: () => void;
 }
 
-type Pestana = 'validaciones' | 'competencia';
+type Pestana = 'legal' | 'competencia';
 
 const PESTANAS: { id: Pestana; etiqueta: string }[] = [
-  { id: 'validaciones', etiqueta: 'Validaciones' },
+  { id: 'legal', etiqueta: 'Análisis legal' },
   { id: 'competencia', etiqueta: 'Zona y competencia' },
 ];
 
@@ -38,12 +38,12 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
       ? indiceActual
       : 0;
 
-  const [pestana, setPestana] = useState<Pestana>('validaciones');
+  const [pestana, setPestana] = useState<Pestana>('legal');
   const [hallazgoAbierto, setHallazgoAbierto] = useState<SeleccionHallazgo | null>(null);
 
   const seleccionarExpediente = (indice: number) => {
     setSeleccionManual(indice);
-    setPestana('validaciones');
+    setPestana('legal');
   };
 
   const actual = analisis[seleccionado];
@@ -51,15 +51,28 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
 
   const finalizado = actual.dictamen !== null;
 
-  const bloqueValidaciones = (
+  const bloqueAnalisisLegal = (
     <div className="space-y-5">
-      <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+      {finalizado && actual.dictamen && <DictamenBanner dictamen={actual.dictamen} documentos={actual.documentos} />}
+
+      {finalizado ? (
         <StageBar
           etapaActual={actual.etapaActual}
           etapasCompletadas={actual.etapasCompletadas}
           progreso={actual.progreso}
+          compacto
         />
-      </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <StageBar
+            etapaActual={actual.etapaActual}
+            etapasCompletadas={actual.etapasCompletadas}
+            progreso={actual.progreso}
+            compacto={false}
+          />
+        </div>
+      )}
+
       <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
         {actual.documentos.map((documento) => (
           <DocumentCard
@@ -71,6 +84,8 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
           />
         ))}
       </div>
+
+      {finalizado && <DocumentosResumen archivosNoReconocidos={actual.archivosNoReconocidos} />}
     </div>
   );
 
@@ -100,13 +115,6 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
         </button>
       </div>
 
-      {finalizado && actual.dictamen && (
-        <>
-          <DictamenBanner dictamen={actual.dictamen} documentos={actual.documentos} />
-          <DocumentosResumen archivosNoReconocidos={actual.archivosNoReconocidos} />
-        </>
-      )}
-
       {finalizado ? (
         <div>
           <div role="tablist" aria-label="Secciones del expediente" className="flex gap-1 border-b border-border">
@@ -129,12 +137,12 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
           </div>
 
           <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`tab-${pestana}`} className="pt-4">
-            {pestana === 'validaciones' && bloqueValidaciones}
+            {pestana === 'legal' && bloqueAnalisisLegal}
             {pestana === 'competencia' && <CompetitionTab />}
           </div>
         </div>
       ) : (
-        bloqueValidaciones
+        bloqueAnalisisLegal
       )}
 
       <FindingDrawer seleccion={hallazgoAbierto} onCerrar={() => setHallazgoAbierto(null)} />
