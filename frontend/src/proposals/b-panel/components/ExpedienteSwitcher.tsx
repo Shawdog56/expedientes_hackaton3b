@@ -18,7 +18,7 @@ function IconoDictamen({ dictamen }: { dictamen: Dictamen }) {
 
 export function ExpedienteSwitcher({ analisis, indiceEnCurso, seleccionado, interactivo, onSeleccionar }: Props) {
   return (
-    <div role="group" aria-label="Expedientes del lote" className="flex flex-wrap gap-2">
+    <div data-tour="selector-expedientes" role="group" aria-label="Expedientes del lote" className="flex flex-wrap gap-2">
       {analisis.map((item, indice) => {
         const activo = indice === seleccionado;
 

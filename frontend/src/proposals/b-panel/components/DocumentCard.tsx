@@ -1,5 +1,5 @@
 import { ChevronRight, FileX } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, type Variants } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { useAnimaciones } from '../../../shared/motion';
 import type { DocumentoAnalisis, EstadoRegla } from '../../../shared/useSimulatedAnalysis';
@@ -17,14 +17,25 @@ interface Props {
 
 const FLASH_HALLAZGO = { backgroundColor: ['rgba(217,119,6,0)', 'rgba(217,119,6,0.3)', 'rgba(217,119,6,0)'] };
 
+const VARIANTES_CONTENIDO_FILA: Variants = {
+  reposo: { x: 0 },
+  hover: { x: 2 },
+};
+
+const VARIANTES_CHEVRON_FILA: Variants = {
+  reposo: { x: 0 },
+  hover: { x: 4 },
+};
+
 interface FilaReglaProps {
   regla: EstadoRegla;
   interactivo: boolean;
+  dataTour?: string;
   onAbrir: () => void;
 }
 
 /** Fila de un punto de validación: se encarga de su propio flash ámbar, único, cuando pasa a tener un hallazgo. */
-function FilaRegla({ regla, interactivo, onAbrir }: FilaReglaProps) {
+function FilaRegla({ regla, interactivo, dataTour, onAbrir }: FilaReglaProps) {
   const { reducido } = useAnimaciones();
   const anteriorRef = useRef(regla.estado);
   const [flasheando, setFlasheando] = useState(false);
@@ -55,18 +66,43 @@ function FilaRegla({ regla, interactivo, onAbrir }: FilaReglaProps) {
     );
   }
 
+  const colorHover =
+    regla.estado === 'revisar'
+      ? 'rgba(232,163,23,0.2)'
+      : regla.estado === 'no_cumple'
+        ? 'rgba(198,40,40,0.18)'
+        : '#F5F5F5';
+
+  const variantesFila: Variants = {
+    reposo: { backgroundColor: 'rgba(0,0,0,0)' },
+    hover: { backgroundColor: colorHover },
+  };
+
   return (
     <li>
       <motion.button
         type="button"
+        data-tour={dataTour}
         onClick={onAbrir}
+        initial="reposo"
+        whileHover="hover"
+        whileFocus="hover"
+        whileTap={reducido ? undefined : { scale: 0.99 }}
+        variants={variantesFila}
         animate={flasheando ? FLASH_HALLAZGO : undefined}
-        transition={{ duration: 0.7 }}
-        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-bg ${fondoHallazgo}`}
+        transition={{ duration: 0.15 }}
+        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand ${fondoHallazgo}`}
       >
-        <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0 self-start" />
-        <span className="flex-1 text-ink">{regla.etiqueta}</span>
-        <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+        <motion.span
+          className="flex flex-1 items-start gap-2"
+          variants={reducido ? undefined : VARIANTES_CONTENIDO_FILA}
+        >
+          <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0 self-start" />
+          <span className="flex-1 text-ink">{regla.etiqueta}</span>
+        </motion.span>
+        <motion.span variants={reducido ? undefined : VARIANTES_CHEVRON_FILA}>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+        </motion.span>
       </motion.button>
     </li>
   );
@@ -153,6 +189,7 @@ export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunt
             key={regla.id}
             regla={regla}
             interactivo={interactivo}
+            dataTour={documento.tipoId === 'predial' && regla.id === 'superficie_registrada' ? 'punto-hallazgo' : undefined}
             onAbrir={() =>
               onAbrirPunto({
                 tipoId: documento.tipoId,

@@ -1,6 +1,7 @@
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, type Variants } from 'motion/react';
 import { RotateCcw } from 'lucide-react';
 import { useState } from 'react';
+import { CURVA_SALIDA, useAnimaciones } from '../../../shared/motion';
 import type { ExpedienteAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { CompetitionTab } from './CompetitionTab';
 import { DictamenBanner } from './DictamenBanner';
@@ -24,7 +25,18 @@ const PESTANAS: { id: Pestana; etiqueta: string }[] = [
   { id: 'competencia', etiqueta: 'Zona y competencia' },
 ];
 
+const VARIANTES_BOTON_REINICIAR: Variants = {
+  reposo: { y: 0, boxShadow: '0 0 0 rgba(0,0,0,0)' },
+  hover: { y: -1, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+};
+
+const VARIANTES_ICONO_REINICIAR: Variants = {
+  reposo: { rotate: 0 },
+  hover: { rotate: -360 },
+};
+
 export function ValidationView({ analisis, indiceActual, terminado, onReiniciar }: Props) {
+  const { reducido } = useAnimaciones();
   // Mientras corre, la selección sigue al expediente en curso (derivado, sin
   // estado propio). Al terminar, el usuario puede elegir libremente; se
   // recuerda el último índice en curso como punto de partida (ajustado
@@ -65,7 +77,7 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
           compacto
         />
       ) : (
-        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+        <div data-tour="barra-etapas" className="rounded-xl border border-border bg-surface p-4 shadow-sm">
           <StageBar
             etapaActual={actual.etapaActual}
             etapasCompletadas={actual.etapasCompletadas}
@@ -75,7 +87,7 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
         </div>
       )}
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
+      <div data-tour="tarjetas-documentos" className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
         {actual.documentos.map((documento, indice) => (
           <motion.div
             key={documento.tipoId}
@@ -114,15 +126,28 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
             <h2 className="truncate text-lg font-semibold text-ink">{actual.nombre}</h2>
           </div>
         )}
-        <button
+        <motion.button
           type="button"
+          data-tour="boton-analizar-otro-lote"
           onClick={onReiniciar}
+          initial="reposo"
+          whileHover={reducido ? undefined : 'hover'}
+          whileFocus={reducido ? undefined : 'hover'}
+          whileTap={reducido ? undefined : { scale: 0.97 }}
+          variants={reducido ? undefined : VARIANTES_BOTON_REINICIAR}
+          transition={{ duration: 0.15 }}
           style={{ borderColor: '#CFCFCF' }}
           className="flex min-h-11 shrink-0 items-center gap-2 self-end rounded-[10px] border bg-white px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#F5F5F5]"
         >
-          <RotateCcw className="h-[18px] w-[18px] shrink-0 text-ink" aria-hidden="true" />
+          <motion.span
+            className="flex"
+            variants={reducido ? undefined : VARIANTES_ICONO_REINICIAR}
+            transition={{ duration: 0.5, ease: [...CURVA_SALIDA] }}
+          >
+            <RotateCcw className="h-[18px] w-[18px] shrink-0 text-ink" aria-hidden="true" />
+          </motion.span>
           Analizar otro lote
-        </button>
+        </motion.button>
       </div>
 
       <motion.div
@@ -140,6 +165,7 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
                   <button
                     key={item.id}
                     type="button"
+                    data-tour={`tab-${item.id}`}
                     role="tab"
                     id={`tab-${item.id}`}
                     aria-selected={activo}

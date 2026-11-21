@@ -47,7 +47,7 @@ export function PanelExpedienteList({ expedientes, onQuitar, onAnalizar }: Props
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface shadow-sm">
+    <div data-tour="bandeja-expedientes" className="rounded-xl border border-border bg-surface shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold text-ink">Expedientes cargados</h2>
         <span className="text-xs font-medium text-muted">
@@ -89,6 +89,7 @@ export function PanelExpedienteList({ expedientes, onQuitar, onAnalizar }: Props
       <div className="flex justify-end border-t border-border p-4">
         <motion.button
           type="button"
+          data-tour="boton-analizar"
           onClick={onAnalizar}
           initial={reducido ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
