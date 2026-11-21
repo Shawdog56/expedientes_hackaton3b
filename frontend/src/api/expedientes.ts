@@ -104,3 +104,60 @@ export async function decidirExpediente(
   });
   return leerRespuesta<ExpedienteServidor>(res);
 }
+
+export interface HallazgoAuditoria {
+  regla: string;
+  descripcion: string;
+  severidad?: 'CRITICO' | 'ADVERTENCIA' | string;
+}
+
+/** Un documento tal como lo deja la auditoría: clase que reconoció el modelo, campos y observaciones. */
+export interface DocumentoAuditado {
+  documento_id?: string;
+  archivo?: string;
+  clase?: string;
+  confianza?: number;
+  resumen?: string;
+  campos?: Record<string, unknown>;
+  campos_normalizados?: Record<string, unknown>;
+  campos_faltantes_criticos?: string[];
+  observaciones?: string[];
+  estado_documento?: 'valido' | 'con_observaciones' | 'invalido' | string;
+  ocr_metadatos?: { metodo?: string; paginas?: number; advertencias?: string[] };
+}
+
+export interface ResultadoAuditoria {
+  veredicto: string;
+  confianza_veredicto: number;
+  confianzas_por_documento?: Record<string, number>;
+  explicacion?: string;
+  hallazgos_criticos?: HallazgoAuditoria[];
+  hallazgos_advertencias?: HallazgoAuditoria[];
+  hallazgos_conformes?: HallazgoAuditoria[];
+  documentos: DocumentoAuditado[];
+}
+
+export type EtapaAuditoria = 'extraer' | 'validar_reglas' | 'validacion_cruzada' | 'dictamen';
+
+export interface EstadoAuditoria {
+  expediente_id: string;
+  estado: 'en_proceso' | 'completada' | 'error';
+  etapa: EtapaAuditoria;
+  documentos_total: number;
+  documentos_listos: number;
+  documentos_en_curso: string[];
+  resultado: ResultadoAuditoria | null;
+  error: string | null;
+}
+
+/** Inicia la auditoría con agentes (OCR y modelo de lenguaje) en segundo plano. */
+export async function iniciarAuditoria(idServidor: string): Promise<EstadoAuditoria> {
+  const res = await fetch(`${BASE}/expedientes/${idServidor}/auditoria`, { method: 'POST' });
+  return leerRespuesta<EstadoAuditoria>(res);
+}
+
+/** Progreso y, al terminar, resultado de la auditoría. */
+export async function consultarAuditoria(idServidor: string): Promise<EstadoAuditoria> {
+  const res = await fetch(`${BASE}/expedientes/${idServidor}/auditoria`);
+  return leerRespuesta<EstadoAuditoria>(res);
+}

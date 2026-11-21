@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { EVIDENCIA_POR_PUNTO, HALLAZGOS_CRUZADOS } from '../../../shared/mockResults';
 import { useAnimaciones } from '../../../shared/motion';
+import type { DetalleRegla } from '../../../shared/resultadosReales';
 import type { EstadoValidacion, TipoDocumentalId } from '../../../shared/validationRules';
 
 export interface SeleccionHallazgo {
@@ -12,6 +13,39 @@ export interface SeleccionHallazgo {
   estado: EstadoValidacion;
   documentoNombre: string;
   documentoArchivo: string;
+  /** Con análisis real: lo que extrajo el modelo. Sin él se muestra la evidencia de ejemplo. */
+  detalle?: DetalleRegla;
+}
+
+function DetalleReal({ seleccion, detalle }: { seleccion: SeleccionHallazgo; detalle: DetalleRegla }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-ink">
+        <span className="font-medium">{seleccion.documentoNombre}</span> · {seleccion.reglaEtiqueta}
+      </p>
+      {detalle.documento && <p className="text-xs text-muted">Leído de: {detalle.documento}</p>}
+      {detalle.valores.length > 0 && (
+        <dl className="divide-y divide-border rounded-lg border border-border">
+          {detalle.valores.map(({ campo, valor }) => (
+            <div key={campo} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3 px-3 py-2 text-sm">
+              <dt className="text-muted">{campo}</dt>
+              <dd className="break-words font-medium text-ink">{valor}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {detalle.notas.length > 0 && (
+        <ul className="space-y-1.5">
+          {detalle.notas.map((nota, indice) => (
+            <li key={indice} className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink">
+              {nota}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs text-muted">Datos extraídos por OCR y el modelo de lenguaje; verifícalos en el documento.</p>
+    </div>
+  );
 }
 
 interface Props {
@@ -57,10 +91,12 @@ export function FindingDrawer({ seleccion, onCerrar }: Props) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [seleccion, onCerrar]);
 
-  const hallazgo = seleccion
-    ? HALLAZGOS_CRUZADOS.find((item) => item.tipoId === seleccion.tipoId && item.reglaId === seleccion.reglaId)
+  // La evidencia de ejemplo solo se usa sin datos reales (tutorial).
+  const deEjemplo = seleccion && !seleccion.detalle ? seleccion : null;
+  const hallazgo = deEjemplo
+    ? HALLAZGOS_CRUZADOS.find((item) => item.tipoId === deEjemplo.tipoId && item.reglaId === deEjemplo.reglaId)
     : undefined;
-  const evidenciaSimple = seleccion ? EVIDENCIA_POR_PUNTO[`${seleccion.tipoId}:${seleccion.reglaId}`] : undefined;
+  const evidenciaSimple = deEjemplo ? EVIDENCIA_POR_PUNTO[`${deEjemplo.tipoId}:${deEjemplo.reglaId}`] : undefined;
   const evidenciaMostrada = hallazgo?.evidencias[indiceEvidencia];
 
   return (
@@ -104,7 +140,9 @@ export function FindingDrawer({ seleccion, onCerrar }: Props) {
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4">
-              {hallazgo ? (
+              {seleccion.detalle ? (
+                <DetalleReal seleccion={seleccion} detalle={seleccion.detalle} />
+              ) : hallazgo ? (
                 <div className="space-y-4">
                   <p className="text-sm text-ink">
                     {hallazgo.descripcion} {hallazgo.tolerancia}.

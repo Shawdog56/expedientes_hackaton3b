@@ -211,6 +211,7 @@ export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunt
                 estado: regla.estado,
                 documentoNombre: documento.nombre,
                 documentoArchivo: documento.archivo ?? documento.nombre,
+                detalle: regla.detalle,
               })
             }
           />

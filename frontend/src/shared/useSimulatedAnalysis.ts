@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ResultadoAuditoria } from '../api/expedientes';
+import type { DetalleRegla } from './resultadosReales';
 import { comoArchivoVisible, type ArchivoVisible, type Expediente } from './types/expediente';
 import {
   ETAPAS,
@@ -17,6 +19,8 @@ export interface EstadoRegla {
   id: string;
   etiqueta: string;
   estado: EstadoValidacion;
+  /** Con análisis real: valores que extrajo el modelo y observaciones de este punto. */
+  detalle?: DetalleRegla;
 }
 
 export interface DocumentoAnalisis {
@@ -44,6 +48,10 @@ export interface ExpedienteAnalisis {
   documentos: DocumentoAnalisis[];
   archivosNoReconocidos: string[];
   dictamen: Dictamen | null;
+  /** Resultado de la auditoría real (OCR + modelo); no existe en el análisis de ejemplo. */
+  resultadoReal?: ResultadoAuditoria;
+  /** Motivo si la auditoría real falló. */
+  error?: string;
 }
 
 function crearDocumentosIniciales(expediente: Expediente): DocumentoAnalisis[] {
@@ -67,7 +75,7 @@ function crearDocumentosIniciales(expediente: Expediente): DocumentoAnalisis[] {
   });
 }
 
-function crearExpedienteAnalisis(expediente: Expediente): ExpedienteAnalisis {
+export function crearExpedienteAnalisis(expediente: Expediente): ExpedienteAnalisis {
   return {
     expedienteId: expediente.id,
     idServidor: expediente.idServidor,

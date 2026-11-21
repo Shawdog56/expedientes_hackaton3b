@@ -85,7 +85,25 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar,
 
   const bloqueAnalisisLegal = (
     <div className="space-y-5">
-      {finalizado && actual.dictamen && <DictamenBanner dictamen={actual.dictamen} documentos={actual.documentos} />}
+      {finalizado && actual.dictamen && (
+        <DictamenBanner dictamen={actual.dictamen} documentos={actual.documentos} resultadoReal={actual.resultadoReal} />
+      )}
+
+      {actual.error && (
+        <div role="alert" className="flex items-start gap-2 rounded-xl border border-error/40 bg-error/5 p-4 text-sm text-ink">
+          <CircleX className="mt-0.5 h-4 w-4 shrink-0 text-error" aria-hidden="true" />
+          <span>
+            <strong className="font-semibold">No se pudo auditar este expediente.</strong> {actual.error}
+          </span>
+        </div>
+      )}
+
+      {/* Solo en el análisis real: los expedientes del tutorial no existen en el servidor. */}
+      {!finalizado && !actual.error && actual.idServidor && actual.etapaActual === 'extraer' && (
+        <p className="text-sm text-muted">
+          Leyendo los documentos con OCR y el modelo de lenguaje. Puede tardar varios minutos por expediente.
+        </p>
+      )}
 
       {finalizado ? (
         <StageBar

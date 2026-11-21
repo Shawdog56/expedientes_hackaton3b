@@ -5,6 +5,7 @@ import { EXPEDIENTES_DEMO } from '../../shared/datosDemo';
 import { useExpedientes } from '../../shared/hooks/useExpedientes';
 import { CURVA_SALIDA, DURACION, useAnimaciones } from '../../shared/motion';
 import type { DocumentoParaVer } from '../../shared/types/expediente';
+import { useAnalisisReal } from '../../shared/useAnalisisReal';
 import { useSimulatedAnalysis } from '../../shared/useSimulatedAnalysis';
 import { DocumentViewer } from './components/DocumentViewer';
 import { Tutorial, type TutorialContexto } from './components/Tutorial';
@@ -19,7 +20,8 @@ const VELOCIDAD_TUTORIAL = 4;
 export function PanelApp() {
   const { expedientes, expedientesListos, agregarExpedientes, quitarExpediente, reclasificar, aviso } =
     useExpedientes();
-  const { analisis, indiceActual, corriendo, terminado, iniciar, reiniciar } = useSimulatedAnalysis();
+  // Análisis real (OCR + modelo de lenguaje en el backend); el simulado queda solo para el tutorial.
+  const { analisis, indiceActual, corriendo, terminado, iniciar, reiniciar } = useAnalisisReal();
 
   // Instancia independiente para el tutorial: corre sobre datos de prueba sin
   // tocar el estado real, así "restaurar" al terminar es simplemente dejar de
