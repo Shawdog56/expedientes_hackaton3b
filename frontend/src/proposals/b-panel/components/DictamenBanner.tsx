@@ -1,5 +1,7 @@
 import { TriangleAlert } from 'lucide-react';
+import { motion } from 'motion/react';
 import { obtenerResumenDictamen, type Confianza } from '../../../shared/mockResults';
+import { useAnimaciones } from '../../../shared/motion';
 import type { Dictamen, DocumentoAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { RecomendacionInicial } from './RecomendacionInicial';
 
@@ -33,12 +35,17 @@ function IndicadorConfianza({ confianza }: { confianza: Confianza }) {
 }
 
 export function DictamenBanner({ dictamen, documentos }: Props) {
+  const { reducido } = useAnimaciones();
   const faltantes = documentos.filter((documento) => documento.faltante);
   const documentosFaltantes = faltantes.map((documento) => documento.nombre);
   const { confianza, porQue } = obtenerResumenDictamen(dictamen, { documentosFaltantes });
 
   return (
-    <div className="rounded-[14px] border border-border bg-surface p-5">
+    <motion.div
+      initial={reducido ? { opacity: 0 } : { opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="rounded-[14px] border border-border bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <RecomendacionInicial dictamen={dictamen} />
         <div className="flex flex-wrap items-center gap-4">
@@ -58,6 +65,6 @@ export function DictamenBanner({ dictamen, documentos }: Props) {
       </div>
 
       <p className="mt-4 text-[15px] leading-[23px] text-ink">{porQue}</p>
-    </div>
+    </motion.div>
   );
 }

@@ -1,6 +1,9 @@
 import { ChevronRight, FileX } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useEffect, useRef, useState } from 'react';
+import { useAnimaciones } from '../../../shared/motion';
+import type { DocumentoAnalisis, EstadoRegla } from '../../../shared/useSimulatedAnalysis';
 import { REGLAS_VALIDACION } from '../../../shared/validationRules';
-import type { DocumentoAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { EstadoIcono } from './EstadoIcono';
 import type { SeleccionHallazgo } from './FindingDrawer';
 import { ProgressRing, type EstadoAnillo } from './ProgressRing';
@@ -10,6 +13,63 @@ interface Props {
   enValidacion: boolean;
   interactivo: boolean;
   onAbrirPunto: (seleccion: SeleccionHallazgo) => void;
+}
+
+const FLASH_HALLAZGO = { backgroundColor: ['rgba(217,119,6,0)', 'rgba(217,119,6,0.3)', 'rgba(217,119,6,0)'] };
+
+interface FilaReglaProps {
+  regla: EstadoRegla;
+  interactivo: boolean;
+  onAbrir: () => void;
+}
+
+/** Fila de un punto de validación: se encarga de su propio flash ámbar, único, cuando pasa a tener un hallazgo. */
+function FilaRegla({ regla, interactivo, onAbrir }: FilaReglaProps) {
+  const { reducido } = useAnimaciones();
+  const anteriorRef = useRef(regla.estado);
+  const [flasheando, setFlasheando] = useState(false);
+
+  useEffect(() => {
+    const esHallazgoAhora = regla.estado === 'revisar' || regla.estado === 'no_cumple';
+    const eraHallazgoAntes = anteriorRef.current === 'revisar' || anteriorRef.current === 'no_cumple';
+    anteriorRef.current = regla.estado;
+    if (esHallazgoAhora && !eraHallazgoAntes && !reducido) {
+      setFlasheando(true);
+      const id = setTimeout(() => setFlasheando(false), 700);
+      return () => clearTimeout(id);
+    }
+  }, [regla.estado, reducido]);
+
+  const fondoHallazgo = regla.estado === 'revisar' ? 'bg-warn/10' : regla.estado === 'no_cumple' ? 'bg-error/10' : '';
+
+  if (!interactivo) {
+    return (
+      <motion.li
+        className={`flex items-start gap-2 rounded-md px-2 py-1.5 text-sm ${fondoHallazgo}`}
+        animate={flasheando ? FLASH_HALLAZGO : undefined}
+        transition={{ duration: 0.7 }}
+      >
+        <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0" />
+        <span className="text-ink">{regla.etiqueta}</span>
+      </motion.li>
+    );
+  }
+
+  return (
+    <li>
+      <motion.button
+        type="button"
+        onClick={onAbrir}
+        animate={flasheando ? FLASH_HALLAZGO : undefined}
+        transition={{ duration: 0.7 }}
+        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-bg ${fondoHallazgo}`}
+      >
+        <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0 self-start" />
+        <span className="flex-1 text-ink">{regla.etiqueta}</span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+      </motion.button>
+    </li>
+  );
 }
 
 export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunto }: Props) {
@@ -88,45 +148,23 @@ export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunt
         <ProgressRing estado={estadoAnillo} resueltos={resueltos} total={total} etiqueta={etiquetaAnillo} />
       </div>
       <ul className="space-y-1">
-        {documento.reglas.map((regla) => {
-          const fondoHallazgo =
-            regla.estado === 'revisar' ? 'bg-warn/10' : regla.estado === 'no_cumple' ? 'bg-error/10' : '';
-
-          if (!interactivo) {
-            return (
-              <li
-                key={regla.id}
-                className={`flex items-start gap-2 rounded-md px-2 py-1.5 text-sm ${fondoHallazgo}`}
-              >
-                <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0" />
-                <span className="text-ink">{regla.etiqueta}</span>
-              </li>
-            );
-          }
-
-          return (
-            <li key={regla.id}>
-              <button
-                type="button"
-                onClick={() =>
-                  onAbrirPunto({
-                    tipoId: documento.tipoId,
-                    reglaId: regla.id,
-                    reglaEtiqueta: regla.etiqueta,
-                    estado: regla.estado,
-                    documentoNombre: documento.nombre,
-                    documentoArchivo: documento.archivoEjemplo,
-                  })
-                }
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-bg ${fondoHallazgo}`}
-              >
-                <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0 self-start" />
-                <span className="flex-1 text-ink">{regla.etiqueta}</span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
-              </button>
-            </li>
-          );
-        })}
+        {documento.reglas.map((regla) => (
+          <FilaRegla
+            key={regla.id}
+            regla={regla}
+            interactivo={interactivo}
+            onAbrir={() =>
+              onAbrirPunto({
+                tipoId: documento.tipoId,
+                reglaId: regla.id,
+                reglaEtiqueta: regla.etiqueta,
+                estado: regla.estado,
+                documentoNombre: documento.nombre,
+                documentoArchivo: documento.archivoEjemplo,
+              })
+            }
+          />
+        ))}
       </ul>
     </div>
   );

@@ -1,3 +1,5 @@
+import { AnimatePresence, motion } from 'motion/react';
+import { RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import type { ExpedienteAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { CompetitionTab } from './CompetitionTab';
@@ -74,14 +76,20 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
       )}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
-        {actual.documentos.map((documento) => (
-          <DocumentCard
+        {actual.documentos.map((documento, indice) => (
+          <motion.div
             key={documento.tipoId}
-            documento={documento}
-            enValidacion={actual.documentoEnValidacion === documento.tipoId}
-            interactivo={finalizado}
-            onAbrirPunto={setHallazgoAbierto}
-          />
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: indice * 0.08 }}
+          >
+            <DocumentCard
+              documento={documento}
+              enValidacion={actual.documentoEnValidacion === documento.tipoId}
+              interactivo={finalizado}
+              onAbrirPunto={setHallazgoAbierto}
+            />
+          </motion.div>
         ))}
       </div>
 
@@ -109,41 +117,75 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
         <button
           type="button"
           onClick={onReiniciar}
-          className="shrink-0 text-sm font-medium text-brand underline underline-offset-2 hover:no-underline"
+          style={{ borderColor: '#CFCFCF' }}
+          className="flex min-h-11 shrink-0 items-center gap-2 self-end rounded-[10px] border bg-white px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#F5F5F5]"
         >
+          <RotateCcw className="h-[18px] w-[18px] shrink-0 text-ink" aria-hidden="true" />
           Analizar otro lote
         </button>
       </div>
 
-      {finalizado ? (
-        <div>
-          <div role="tablist" aria-label="Secciones del expediente" className="flex gap-1 border-b border-border">
-            {PESTANAS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                id={`tab-${item.id}`}
-                aria-selected={pestana === item.id}
-                aria-controls={`panel-${item.id}`}
-                onClick={() => setPestana(item.id)}
-                className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                  pestana === item.id ? 'border-brand text-ink' : 'border-transparent text-muted hover:text-ink'
-                }`}
-              >
-                {item.etiqueta}
-              </button>
-            ))}
-          </div>
+      <motion.div
+        key={seleccionado}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
+        {finalizado ? (
+          <div>
+            <div role="tablist" aria-label="Secciones del expediente" className="flex gap-1 border-b border-border">
+              {PESTANAS.map((item) => {
+                const activo = pestana === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    id={`tab-${item.id}`}
+                    aria-selected={activo}
+                    aria-controls={`panel-${item.id}`}
+                    onClick={() => setPestana(item.id)}
+                    className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+                      activo ? 'text-ink' : 'text-muted hover:text-ink'
+                    }`}
+                  >
+                    {item.etiqueta}
+                    {activo && (
+                      <motion.span
+                        layoutId="subrayado-pestana"
+                        className="absolute inset-x-0 -bottom-px h-0.5 bg-brand"
+                        transition={{ duration: 0.2 }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-          <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`tab-${pestana}`} className="pt-4">
-            {pestana === 'legal' && bloqueAnalisisLegal}
-            {pestana === 'competencia' && <CompetitionTab />}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={pestana}
+                role="tabpanel"
+                id={`panel-${pestana}`}
+                aria-labelledby={`tab-${pestana}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onAnimationComplete={() => {
+                  if (pestana === 'competencia') window.dispatchEvent(new Event('resize'));
+                }}
+                className="pt-4"
+              >
+                {pestana === 'legal' && bloqueAnalisisLegal}
+                {pestana === 'competencia' && <CompetitionTab />}
+              </motion.div>
+            </AnimatePresence>
           </div>
-        </div>
-      ) : (
-        bloqueAnalisisLegal
-      )}
+        ) : (
+          bloqueAnalisisLegal
+        )}
+      </motion.div>
 
       <FindingDrawer seleccion={hallazgoAbierto} onCerrar={() => setHallazgoAbierto(null)} />
     </div>

@@ -79,6 +79,29 @@
   font-size: 10px;
 }
 
+/* Entrada escalonada de los pines al cargar el mapa o cambiar el radio
+   (CSS puro, no `motion`, porque el icono vive en un divIcon de Leaflet). */
+@keyframes pin-pop {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.mapa-pin--animado {
+  transform-origin: 50% 100%;
+  animation: pin-pop 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--pin-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mapa-pin--animado {
+    animation: none;
+  }
+}
+
 /* Inmueble: pin más grande, siempre por encima de las tiendas. */
 .mapa-pin--inmueble {
   width: 36px;
