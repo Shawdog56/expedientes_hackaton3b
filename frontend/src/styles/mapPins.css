@@ -1,0 +1,99 @@
+/* Pines de divIcon para el mapa de "Zona y competencia". El color de cada
+   pin llega por dato (--pin-color); el resto vive aquí, no inline. */
+
+.mapa-pin-wrapper {
+  background: transparent !important;
+  border: none !important;
+}
+
+.mapa-pin {
+  position: relative;
+  display: block;
+  width: 28px;
+  height: 36px;
+}
+
+.mapa-pin__cola {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  background: var(--pin-color, #6b6b6b);
+  transform: rotate(45deg);
+  border-radius: 0 0 2px 0;
+}
+
+.mapa-pin__circulo {
+  position: absolute;
+  inset: 0 0 auto 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  background: var(--pin-color, #6b6b6b);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+.mapa-pin__inicial {
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.mapa-pin__logo {
+  width: 100%;
+  height: 100%;
+  padding: 3px;
+  background: #ffffff;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+/* Tiendas a zoom <= 13: pines más pequeños para que no se encimen. */
+.mapa-pin--pequeno {
+  width: 22px;
+  height: 28px;
+}
+
+.mapa-pin--pequeno .mapa-pin__circulo {
+  width: 22px;
+  height: 22px;
+}
+
+.mapa-pin--pequeno .mapa-pin__cola {
+  top: 15px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+}
+
+.mapa-pin--pequeno .mapa-pin__inicial {
+  font-size: 10px;
+}
+
+/* Inmueble: pin más grande, siempre por encima de las tiendas. */
+.mapa-pin--inmueble {
+  width: 36px;
+  height: 46px;
+}
+
+.mapa-pin--inmueble .mapa-pin__circulo {
+  width: 36px;
+  height: 36px;
+  border-width: 3px;
+}
+
+.mapa-pin--inmueble .mapa-pin__cola {
+  top: 28px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+}

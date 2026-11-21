@@ -1,27 +1,63 @@
-import type { Circle as LeafletCircle } from 'leaflet';
+import { divIcon, type Circle as LeafletCircle, type DivIcon } from 'leaflet';
+import { House } from 'lucide-react';
 import { Loader2, MapPin } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import { distanciaHaversineMetros } from '../../../shared/geo';
 import { TESELAS_OSM, TESELAS_PRINCIPALES } from '../../../shared/mapTiles';
-import { COLOR_CADENA, TIENDAS_EJEMPLO, type Cadena } from '../../../shared/mockCompetencia';
+import { CADENAS, LOGOS_CADENA, TIENDAS_EJEMPLO, type Cadena, type TiendaCompetencia } from '../../../shared/mockCompetencia';
 import { UBICACION_EJEMPLO } from '../../../shared/mockResults';
+import '../../../styles/mapPins.css';
 
-type RadioKm = 0.5 | 1 | 2;
+type RadioKm = 0.5 | 1 | 3;
 
 const OPCIONES_RADIO: { valor: RadioKm; etiqueta: string }[] = [
   { valor: 0.5, etiqueta: '500 m' },
   { valor: 1, etiqueta: '1 km' },
-  { valor: 2, etiqueta: '2 km' },
+  { valor: 3, etiqueta: '3 km' },
 ];
 
 const LIMITE_ERRORES_TESELA = 3;
 const TIEMPO_LIMITE_CARGA_MS = 8000;
+const ZOOM_PINES_PEQUENOS = 13;
+const VELOCIDAD_CAMINATA_M_POR_MIN = 80;
+
+const ICONO_CASA_SVG = renderToStaticMarkup(<House color="#FFFFFF" size={18} strokeWidth={2.5} />);
 
 function leerColorToken(variable: string, respaldo: string): string {
   if (typeof window === 'undefined') return respaldo;
   const valor = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
   return valor || respaldo;
+}
+
+function crearIconoTienda(cadena: Cadena, distanciaM: number, pequeno: boolean): DivIcon {
+  const info = CADENAS[cadena];
+  const logo = LOGOS_CADENA[cadena];
+  const tamano = pequeno ? 22 : 28;
+  const alto = pequeno ? 28 : 36;
+  const etiqueta = `${info.nombre}, ${Math.round(distanciaM)} m`;
+  const contenido = logo
+    ? `<img class="mapa-pin__logo" src="${logo}" alt="" />`
+    : `<span class="mapa-pin__inicial">${info.nombre.charAt(0)}</span>`;
+
+  return divIcon({
+    className: 'mapa-pin-wrapper',
+    html: `<span class="mapa-pin mapa-pin--tienda${pequeno ? ' mapa-pin--pequeno' : ''}" style="--pin-color: ${info.color}" role="img" aria-label="${etiqueta}"><span class="mapa-pin__cola"></span><span class="mapa-pin__circulo">${contenido}</span></span>`,
+    iconSize: [tamano, alto],
+    iconAnchor: [tamano / 2, alto],
+    popupAnchor: [0, -alto],
+  });
+}
+
+function crearIconoInmueble(direccion: string, color: string): DivIcon {
+  return divIcon({
+    className: 'mapa-pin-wrapper',
+    html: `<span class="mapa-pin mapa-pin--inmueble" style="--pin-color: ${color}" role="img" aria-label="Inmueble: ${direccion}"><span class="mapa-pin__cola"></span><span class="mapa-pin__circulo">${ICONO_CASA_SVG}</span></span>`,
+    iconSize: [36, 46],
+    iconAnchor: [18, 46],
+    popupAnchor: [0, -46],
+  });
 }
 
 /** Corrige el tamaño de Leaflet al montar y cuando el contenedor cambia de tamaño. */
@@ -70,6 +106,44 @@ function RadiusCircle({ centro, radioMetros, color }: RadiusCircleProps) {
       radius={radioMetros}
       pathOptions={{ color, weight: 2, dashArray: '6 6', fillColor: color, fillOpacity: 0.06 }}
     />
+  );
+}
+
+interface TiendaMarkersProps {
+  tiendas: (TiendaCompetencia & { distancia: number })[];
+}
+
+/** Pines de tienda; se achican cuando el zoom baja para que no se encimen. */
+function TiendaMarkers({ tiendas }: TiendaMarkersProps) {
+  const map = useMap();
+  const [pequeno, setPequeno] = useState(() => map.getZoom() <= ZOOM_PINES_PEQUENOS);
+
+  useEffect(() => {
+    const actualizar = () => setPequeno(map.getZoom() <= ZOOM_PINES_PEQUENOS);
+    actualizar();
+    map.on('zoomend', actualizar);
+    return () => {
+      map.off('zoomend', actualizar);
+    };
+  }, [map]);
+
+  return (
+    <>
+      {tiendas.map((tienda) => (
+        <Marker
+          key={tienda.id}
+          position={[tienda.lat, tienda.lng]}
+          icon={crearIconoTienda(tienda.cadena, tienda.distancia, pequeno)}
+        >
+          <Popup>
+            <strong>{tienda.nombre}</strong>
+            <br />
+            {Math.round(tienda.distancia)} m ·{' '}
+            {Math.max(1, Math.round(tienda.distancia / VELOCIDAD_CAMINATA_M_POR_MIN))} min a pie
+          </Popup>
+        </Marker>
+      ))}
+    </>
   );
 }
 
@@ -202,26 +276,11 @@ export function CompetitionTab() {
 
           <RadiusCircle centro={centro} radioMetros={radioMetros} color={colorBrand} />
 
-          {tiendasEnRadio.map((tienda) => (
-            <CircleMarker
-              key={tienda.id}
-              center={[tienda.lat, tienda.lng]}
-              radius={8}
-              pathOptions={{ color: '#FFFFFF', weight: 2, fillColor: COLOR_CADENA[tienda.cadena], fillOpacity: 1 }}
-            >
-              <Popup>
-                {tienda.nombre} · {Math.round(tienda.distancia)} m
-              </Popup>
-            </CircleMarker>
-          ))}
+          <TiendaMarkers tiendas={tiendasEnRadio} />
 
-          <CircleMarker
-            center={centro}
-            radius={10}
-            pathOptions={{ color: '#FFFFFF', weight: 3, fillColor: colorBrand, fillOpacity: 1 }}
-          >
+          <Marker position={centro} icon={crearIconoInmueble(direccion, colorBrand)} zIndexOffset={1000}>
             <Popup>{direccion}</Popup>
-          </CircleMarker>
+          </Marker>
 
           <MapResizeFix />
         </MapContainer>
@@ -261,12 +320,12 @@ export function CompetitionTab() {
               <li key={cadena} className="flex items-center gap-3 px-4 py-3">
                 <span
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-                  style={{ backgroundColor: COLOR_CADENA[cadena] }}
+                  style={{ backgroundColor: CADENAS[cadena].color }}
                   aria-hidden="true"
                 >
-                  {cadena.charAt(0)}
+                  {CADENAS[cadena].nombre.charAt(0)}
                 </span>
-                <span className="flex-1 truncate text-sm font-medium text-ink">{cadena}</span>
+                <span className="flex-1 truncate text-sm font-medium text-ink">{CADENAS[cadena].nombre}</span>
                 <span className="text-xs text-muted">más cercana a {Math.round(info.masCercana)} m</span>
                 <span className="text-sm font-semibold text-ink">{info.cantidad}</span>
               </li>
