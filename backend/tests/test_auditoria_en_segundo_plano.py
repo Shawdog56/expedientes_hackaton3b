@@ -19,19 +19,22 @@ from tests.test_expedientes import pdf_bytes
 class ServicioFalso:
     rutas_vistas: list[Path] = []
     falla: BaseException | None = None
+    pausa = 0.02
+    fases_vistas: list[dict] = []  # instantáneas del estado tomadas desde la API durante la auditoría
 
     async def auditar_archivos(self, archivos, anio_referencia=None, al_avanzar=None):
         total = len(archivos)
         for indice, (nombre, ruta) in enumerate(archivos):
-            al_avanzar({"documentos_total": total, "etapa": "extraer", "documentos_listos": indice,
-                        "documento_en_curso": indice})
+            for fase in ("leyendo", "esperando_modelo", "analizando"):
+                al_avanzar({"documentos_total": total, "etapa": "extraer", "documentos_listos": indice,
+                            "documento_fase": (indice, fase)})
+                await asyncio.sleep(ServicioFalso.pausa)
             assert Path(ruta).read_bytes().startswith(b"%PDF")  # copia descifrada, no el .enc
             ServicioFalso.rutas_vistas.append(Path(ruta))
-            await asyncio.sleep(0.02)
             if ServicioFalso.falla is not None:
                 raise ServicioFalso.falla
             al_avanzar({"documentos_total": total, "etapa": "extraer", "documentos_listos": indice + 1,
-                        "documento_terminado": indice})
+                        "documento_fase": (indice, "listo")})
         al_avanzar({"documentos_total": total, "etapa": "validacion_cruzada", "documentos_listos": total})
         return {
             "veredicto": "Requiere Revisión",
@@ -44,6 +47,7 @@ class ServicioFalso:
 def api(client, monkeypatch):
     """Cliente con un bucle de eventos persistente, para que la tarea en segundo plano siga viva."""
     ServicioFalso.rutas_vistas = []
+    ServicioFalso.pausa = 0.02
     ServicioFalso.falla = None
     monkeypatch.setattr(auditorias, "ExpedienteService", ServicioFalso)
     auditorias._auditorias.clear()
@@ -121,3 +125,37 @@ def test_expediente_inexistente_sin_archivos_o_sin_auditoria(api, storage_tempor
     for archivo in storage_temporal.rglob("*.enc"):
         archivo.unlink()
     assert api.post(f"/api/expedientes/{expediente['id']}/auditoria").status_code == 422
+
+
+def test_el_progreso_informa_la_fase_de_cada_documento(api):
+    ServicioFalso.pausa = 0.15
+    expediente = _subir(api)
+    inicio = api.post(f"/api/expedientes/{expediente['id']}/auditoria").json()
+    assert [d["fase"] for d in inicio["documentos"]] == ["en_espera", "en_espera"]
+    assert {d["id"] for d in inicio["documentos"]} == {d["id"] for d in expediente["documentos"]}
+
+    vistas = set()
+    limite = time.monotonic() + 5
+    while time.monotonic() < limite:
+        estado = api.get(f"/api/expedientes/{expediente['id']}/auditoria").json()
+        vistas.update(d["fase"] for d in estado["documentos"])
+        if estado["estado"] != "en_proceso":
+            break
+        time.sleep(0.03)
+    assert {"leyendo", "esperando_modelo", "analizando"} <= vistas
+    assert [d["fase"] for d in estado["documentos"]] == ["listo", "listo"]
+    assert estado["documentos_en_curso"] == []
+
+
+def test_la_cola_indica_cuantos_expedientes_van_delante(api):
+    ServicioFalso.pausa = 0.15
+    primero = _subir(api)
+    segundo = _subir(api)
+    a = api.post(f"/api/expedientes/{primero['id']}/auditoria").json()
+    time.sleep(0.01)
+    b = api.post(f"/api/expedientes/{segundo['id']}/auditoria").json()
+    assert a["en_cola_delante"] == 0
+    assert b["en_cola_delante"] == 1
+    _esperar(api, primero["id"])
+    final = _esperar(api, segundo["id"])
+    assert final["en_cola_delante"] == 0

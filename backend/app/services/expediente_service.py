@@ -15,6 +15,16 @@ from app.services.validador_cruzado import validar_expediente_cruzado
 from app.services.validador_documento import validar_documento_individual
 
 _pool: PoolDeRecursos[Any] | None = None
+# Turno de OCR: un documento a la vez (el motor es compartido). Ser explícito permite saber cuándo
+# empieza a leerse cada documento y mostrarlo en el progreso.
+_turno_ocr: PoolDeRecursos[None] = PoolDeRecursos([None])
+
+# Fases de un documento durante la auditoría, en orden.
+EN_ESPERA = "en_espera"
+LEYENDO = "leyendo"
+ESPERANDO_MODELO = "esperando_modelo"
+ANALIZANDO = "analizando"
+LISTO = "listo"
 
 
 def pool_clasificadores() -> PoolDeRecursos[Any]:
@@ -45,33 +55,53 @@ class ExpedienteService:
         self.clasificador = clasificador
         self.ocr_agent = ocr_agent or OCRAgent()
 
-    async def _clasificar(self, texto: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _clasificar(
+        self,
+        texto: str,
+        context: dict[str, Any] | None = None,
+        al_obtener_modelo: Optional[Callable[[], None]] = None,
+    ) -> dict[str, Any]:
         if self.clasificador is not None:
+            if al_obtener_modelo:
+                al_obtener_modelo()
             return await self.clasificador.run(texto, context=context)
         async with pool_clasificadores().usar() as clasificador:
+            if al_obtener_modelo:
+                al_obtener_modelo()
             return await clasificador.run(texto, context=context)
 
     async def extraer_y_clasificar_documento(
         self,
         archivo: Path | str | bytes | BinaryIO,
         nombre: str = "",
+        al_cambiar_fase: Optional[Callable[[str], None]] = None,
     ) -> dict[str, Any]:
         """Extrae el texto de un documento mediante el agente OCR y lo transporta
 
         al ClasificadorAgent para su clasificación y extracción estructurada.
+        `al_cambiar_fase` recibe leyendo, esperando_modelo y analizando a medida que avanza.
         """
+
+        def fase(nombre_fase: str) -> None:
+            if al_cambiar_fase is not None:
+                al_cambiar_fase(nombre_fase)
+
         # Paso 1: Recuperar texto y metadatos con el agente OCR. Corre en un hilo: es trabajo de CPU
         # síncrono y, en el bucle principal, bloquearía las demás peticiones mientras dura.
-        resultado_ocr = await asyncio.to_thread(self.ocr_agent.extraer_texto, archivo, nombre=nombre)
+        async with _turno_ocr.usar():
+            fase(LEYENDO)
+            resultado_ocr = await asyncio.to_thread(self.ocr_agent.extraer_texto, archivo, nombre=nombre)
         texto_extraido = resultado_ocr.get("texto", "").strip()
 
         # Paso 2: Transportar el texto al agente clasificador (una instancia de Ollama libre)
+        fase(ESPERANDO_MODELO)
         resultado_clasificacion = await self._clasificar(
             texto_extraido,
             context={
                 "ocr": resultado_ocr,
                 "nombre_archivo": nombre or resultado_ocr.get("archivo", ""),
             },
+            al_obtener_modelo=lambda: fase(ANALIZANDO),
         )
 
         # Paso 3: Enriquecer con metadatos del OCR
@@ -128,10 +158,13 @@ class ExpedienteService:
 
         async def procesar(indice: int, nombre: str, contenido: Any) -> dict[str, Any]:
             nonlocal listos
-            avisar(etapa="extraer", documentos_listos=listos, documento_en_curso=indice)
-            resultado = await self.extraer_y_clasificar_documento(contenido, nombre=nombre)
+            resultado = await self.extraer_y_clasificar_documento(
+                contenido,
+                nombre=nombre,
+                al_cambiar_fase=lambda f: avisar(etapa="extraer", documentos_listos=listos, documento_fase=(indice, f)),
+            )
             listos += 1
-            avisar(etapa="extraer", documentos_listos=listos, documento_terminado=indice)
+            avisar(etapa="extraer", documentos_listos=listos, documento_fase=(indice, LISTO))
             return resultado
 
         # Ejecución concurrente del OCR + Clasificador por archivo (gather conserva el orden)

@@ -115,11 +115,36 @@ def test_dos_expedientes_a_la_vez_comparten_las_mismas_dos_instancias(dos_instan
 
 
 def test_el_ocr_no_bloquea_las_demas_peticiones(dos_instancias):
-    """El OCR síncrono corre en hilos: dos documentos lentos de OCR se solapan."""
-    servicio = ExpedienteService(ocr_agent=OCRFalso(espera=0.2))
-    inicio = time.perf_counter()
-    asyncio.run(servicio.auditar_archivos([("a.pdf", b"x"), ("b.pdf", b"x")]))
-    assert time.perf_counter() - inicio < 0.38  # en serie serían más de 0.4 s
+    """El OCR va de uno en uno (motor compartido), pero en un hilo: el servidor sigue respondiendo."""
+
+    async def principal():
+        servicio = ExpedienteService(ocr_agent=OCRFalso(espera=0.2))
+        latidos = 0
+
+        async def otra_peticion():
+            nonlocal latidos
+            while True:
+                latidos += 1
+                await asyncio.sleep(0.01)
+
+        latido = asyncio.create_task(otra_peticion())
+        inicio = time.perf_counter()
+        await servicio.auditar_archivos([("a.pdf", b"x"), ("b.pdf", b"x")])
+        duracion = time.perf_counter() - inicio
+        latido.cancel()
+        return latidos, duracion
+
+    latidos, duracion = asyncio.run(principal())
+    assert duracion >= 0.38  # dos OCR de 0.2 s, uno tras otro
+    assert latidos > 20  # mientras tanto el bucle de eventos atendió otras tareas
+
+
+def test_el_progreso_reporta_las_fases_de_cada_documento(dos_instancias):
+    eventos = []
+    servicio = ExpedienteService(ocr_agent=OCRFalso())
+    asyncio.run(servicio.auditar_archivos([("a.pdf", b"x")], al_avanzar=eventos.append))
+    fases = [e["documento_fase"][1] for e in eventos if "documento_fase" in e]
+    assert fases == ["leyendo", "esperando_modelo", "analizando", "listo"]
 
 
 def test_el_analisis_por_textos_tambien_usa_el_reparto(dos_instancias):

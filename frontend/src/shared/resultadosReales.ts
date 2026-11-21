@@ -2,9 +2,18 @@
  * Traduce el resultado real de la auditoría (OCR + modelo + validación cruzada del backend) a lo que
  * pintan las pantallas del análisis: estado de cada punto de validación, dictamen y detalle por punto.
  */
-import type { DocumentoAuditado, HallazgoAuditoria, ResultadoAuditoria } from '../api/expedientes';
+import type { DocumentoAuditado, FaseDocumento, HallazgoAuditoria, ResultadoAuditoria } from '../api/expedientes';
 import type { Dictamen, DocumentoAnalisis, EstadoRegla } from './useSimulatedAnalysis';
 import type { EstadoValidacion, TipoDocumentalId } from './validationRules';
+
+/** Avance de la auditoría real mientras corre: fase de cada documento y lugar en la cola. */
+export interface ProgresoReal {
+  documentos: { id: string; nombre: string; fase: FaseDocumento }[];
+  listos: number;
+  total: number;
+  delante: number;
+  iniciadaEn: string;
+}
 
 /** Lo que se muestra al abrir un punto de validación con datos reales. */
 export interface DetalleRegla {

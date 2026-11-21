@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ResultadoAuditoria } from '../api/expedientes';
-import type { DetalleRegla } from './resultadosReales';
+import type { DetalleRegla, ProgresoReal } from './resultadosReales';
 import { comoArchivoVisible, type ArchivoVisible, type Expediente } from './types/expediente';
 import {
   ETAPAS,
@@ -52,6 +52,8 @@ export interface ExpedienteAnalisis {
   resultadoReal?: ResultadoAuditoria;
   /** Motivo si la auditoría real falló. */
   error?: string;
+  /** Avance de la auditoría real mientras corre. */
+  progresoReal?: ProgresoReal;
 }
 
 function crearDocumentosIniciales(expediente: Expediente): DocumentoAnalisis[] {

@@ -19,13 +19,14 @@ from typing import Any, Callable
 from app.core.seguridad.errores import ErrorSeguridad
 from app.db.models import Documento
 from app.services import expedientes as svc
-from app.services.expediente_service import ExpedienteService
+from app.services.expediente_service import ANALIZANDO, EN_ESPERA, LEYENDO, LISTO, ExpedienteService
 
 logger = logging.getLogger(__name__)
 
 EN_PROCESO = "en_proceso"
 COMPLETADA = "completada"
 ERROR = "error"
+EN_CURSO = {LEYENDO, ANALIZANDO}
 
 
 def _ahora() -> str:
@@ -39,11 +40,17 @@ class EstadoAuditoria:
     estado: str = EN_PROCESO
     etapa: str = "extraer"
     documentos_listos: int = 0
-    documentos_en_curso: list[str] = field(default_factory=list)
+    # Fase de cada documento, en el mismo orden que documentos_ids:
+    # en_espera, leyendo (OCR), esperando_modelo, analizando (modelo) o listo.
+    fases: list[str] = field(default_factory=list)
     resultado: dict[str, Any] | None = None
     error: str | None = None
     iniciada_en: str = field(default_factory=_ahora)
     terminada_en: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.fases:
+            self.fases = [EN_ESPERA] * len(self.documentos_ids)
 
     def como_dict(self) -> dict[str, Any]:
         return {
@@ -52,7 +59,9 @@ class EstadoAuditoria:
             "etapa": self.etapa,
             "documentos_total": len(self.documentos_ids),
             "documentos_listos": self.documentos_listos,
-            "documentos_en_curso": list(self.documentos_en_curso),
+            "documentos": [{"id": i, "fase": f} for i, f in zip(self.documentos_ids, self.fases)],
+            "documentos_en_curso": [i for i, f in zip(self.documentos_ids, self.fases) if f in EN_CURSO],
+            "en_cola_delante": _delante_de(self),
             "resultado": self.resultado,
             "error": self.error,
             "iniciada_en": self.iniciada_en,
@@ -66,6 +75,17 @@ _tareas: set[asyncio.Task[None]] = set()  # referencia fuerte: si no, el recolec
 
 def obtener(expediente_id: uuid.UUID) -> EstadoAuditoria | None:
     return _auditorias.get(expediente_id)
+
+
+def _delante_de(estado: EstadoAuditoria) -> int:
+    """Auditorías en curso que empezaron antes: comparten el OCR y el modelo, así que van delante."""
+    if estado.estado != EN_PROCESO:
+        return 0
+    return sum(
+        1
+        for otra in _auditorias.values()
+        if otra is not estado and otra.estado == EN_PROCESO and otra.iniciada_en < estado.iniciada_en
+    )
 
 
 def _mensaje_de_error(exc: BaseException) -> str:
@@ -87,11 +107,10 @@ async def _ejecutar(
     def al_avanzar(evento: dict[str, Any]) -> None:
         estado.etapa = evento.get("etapa", estado.etapa)
         estado.documentos_listos = evento.get("documentos_listos", estado.documentos_listos)
-        if "documento_en_curso" in evento:
-            estado.documentos_en_curso.append(estado.documentos_ids[evento["documento_en_curso"]])
-        if "documento_terminado" in evento:
-            terminado = estado.documentos_ids[evento["documento_terminado"]]
-            estado.documentos_en_curso = [d for d in estado.documentos_en_curso if d != terminado]
+        if "documento_fase" in evento:
+            indice, fase = evento["documento_fase"]
+            if 0 <= indice < len(estado.fases):
+                estado.fases[indice] = fase
 
     try:
         # Los archivos del volumen están cifrados: se auditan copias temporales en claro que se
@@ -110,9 +129,10 @@ async def _ejecutar(
     except Exception as exc:
         logger.exception("Falló la auditoría del expediente %s", estado.expediente_id)
         estado.error = _mensaje_de_error(exc)
+        # Ningún documento queda marcado como en curso si la auditoría se detuvo.
+        estado.fases = [f if f == LISTO else EN_ESPERA for f in estado.fases]
         estado.estado = ERROR
     finally:
-        estado.documentos_en_curso = []
         estado.terminada_en = _ahora()
 
 

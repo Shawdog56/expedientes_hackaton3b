@@ -12,6 +12,7 @@ import { DictamenBanner } from './DictamenBanner';
 import { DocumentCard, type ConfianzaModelo } from './DocumentCard';
 import { DocumentosResumen } from './DocumentosResumen';
 import { ExpedienteSwitcher } from './ExpedienteSwitcher';
+import { ProgresoAuditoria } from './ProgresoAuditoria';
 import { FindingDrawer, type SeleccionHallazgo } from './FindingDrawer';
 import { StageBar } from './StageBar';
 
@@ -132,12 +133,8 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar,
         </div>
       )}
 
-      {/* Solo en el análisis real: los expedientes del tutorial no existen en el servidor. */}
-      {!finalizado && !actual.error && actual.idServidor && actual.etapaActual === 'extraer' && (
-        <p className="text-sm text-muted">
-          Leyendo los documentos con OCR y el modelo de lenguaje. Puede tardar varios minutos por expediente.
-        </p>
-      )}
+      {/* Solo en el análisis real: el tutorial no tiene progreso del backend. */}
+      {!finalizado && !actual.error && actual.progresoReal && <ProgresoAuditoria progreso={actual.progresoReal} />}
 
       {finalizado ? (
         <StageBar

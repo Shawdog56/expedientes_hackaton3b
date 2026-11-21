@@ -31,17 +31,33 @@ const AVANCE: Record<string, { completadas: Etapa[]; actual: Etapa; progreso: nu
 function conProgreso(actual: ExpedienteAnalisis, estado: EstadoAuditoria, expediente: Expediente): ExpedienteAnalisis {
   const avance = AVANCE[estado.etapa] ?? AVANCE.extraer;
   const enCurso = new Set(estado.documentos_en_curso);
+  const fases = estado.documentos ?? [];
+  const analizando = fases.filter((doc) => doc.fase === 'analizando').length;
+  // El documento con el modelo cuenta medio: así la barra avanza durante las esperas largas.
   const progreso =
     estado.etapa === 'extraer' && estado.documentos_total > 0
-      ? 10 + Math.round((50 * estado.documentos_listos) / estado.documentos_total)
+      ? 10 + Math.round((50 * (estado.documentos_listos + analizando / 2)) / estado.documentos_total)
       : avance.progreso;
-  const primero = expediente.documentos.find((doc) => enCurso.has(doc.id));
+  const nombres = new Map(expediente.documentos.map((doc) => [doc.id, doc.nombre]));
+  // Se resalta el documento que está con el modelo; si no hay, el que está en OCR.
+  const resaltado =
+    fases.find((doc) => doc.fase === 'analizando') ?? fases.find((doc) => doc.fase === 'leyendo');
+  const documentoResaltado = expediente.documentos.find((doc) => doc.id === resaltado?.id);
   return {
     ...actual,
     etapasCompletadas: avance.completadas,
     etapaActual: avance.actual,
     progreso,
-    documentoEnValidacion: primero?.tipo_documental ? (TIPO_POR_API[primero.tipo_documental] ?? null) : null,
+    progresoReal: {
+      documentos: fases.map((doc) => ({ id: doc.id, nombre: nombres.get(doc.id) ?? 'Documento', fase: doc.fase })),
+      listos: estado.documentos_listos,
+      total: estado.documentos_total,
+      delante: estado.en_cola_delante ?? 0,
+      iniciadaEn: estado.iniciada_en,
+    },
+    documentoEnValidacion: documentoResaltado?.tipo_documental
+      ? (TIPO_POR_API[documentoResaltado.tipo_documental] ?? null)
+      : null,
     documentos: actual.documentos.map((documento) =>
       documento.archivos.some((archivo) => enCurso.has(archivo.id))
         ? { ...documento, reglas: documento.reglas.map((regla) => ({ ...regla, estado: 'validando' as const })) }

@@ -139,6 +139,9 @@ export interface ResultadoAuditoria {
 
 export type EtapaAuditoria = 'extraer' | 'validar_reglas' | 'validacion_cruzada' | 'dictamen';
 
+/** Fase de cada documento: espera, OCR, espera del modelo, modelo y listo. */
+export type FaseDocumento = 'en_espera' | 'leyendo' | 'esperando_modelo' | 'analizando' | 'listo';
+
 export interface EstadoAuditoria {
   expediente_id: string;
   estado: 'en_proceso' | 'completada' | 'error';
@@ -146,6 +149,10 @@ export interface EstadoAuditoria {
   documentos_total: number;
   documentos_listos: number;
   documentos_en_curso: string[];
+  documentos: { id: string; fase: FaseDocumento }[];
+  /** Auditorías en curso que empezaron antes y comparten el OCR y el modelo. */
+  en_cola_delante: number;
+  iniciada_en: string;
   resultado: ResultadoAuditoria | null;
   error: string | null;
 }
