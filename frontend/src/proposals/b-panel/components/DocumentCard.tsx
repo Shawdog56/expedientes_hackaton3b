@@ -1,13 +1,17 @@
+import { ChevronRight } from 'lucide-react';
 import type { DocumentoAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { EstadoIcono } from './EstadoIcono';
+import type { PuntoSeleccionado } from './FindingDrawer';
 import { ProgressRing, type EstadoAnillo } from './ProgressRing';
 
 interface Props {
   documento: DocumentoAnalisis;
   enValidacion: boolean;
+  interactivo: boolean;
+  onAbrirPunto: (punto: PuntoSeleccionado) => void;
 }
 
-export function DocumentCard({ documento, enValidacion }: Props) {
+export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunto }: Props) {
   const total = documento.reglas.length;
   const resueltos = documento.reglas.filter(
     (regla) => regla.estado !== 'pendiente' && regla.estado !== 'validando',
@@ -55,13 +59,46 @@ export function DocumentCard({ documento, enValidacion }: Props) {
         </div>
         <ProgressRing estado={estadoAnillo} resueltos={resueltos} total={total} etiqueta={etiquetaAnillo} />
       </div>
-      <ul className="space-y-1.5">
-        {documento.reglas.map((regla) => (
-          <li key={regla.id} className="flex items-start gap-2 text-sm">
-            <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0" />
-            <span className="text-ink">{regla.etiqueta}</span>
-          </li>
-        ))}
+      <ul className="space-y-1">
+        {documento.reglas.map((regla) => {
+          const fondoHallazgo =
+            regla.estado === 'revisar' ? 'bg-warn/10' : regla.estado === 'no_cumple' ? 'bg-error/10' : '';
+
+          if (!interactivo) {
+            return (
+              <li
+                key={regla.id}
+                className={`flex items-start gap-2 rounded-md px-2 py-1.5 text-sm ${fondoHallazgo}`}
+              >
+                <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="text-ink">{regla.etiqueta}</span>
+              </li>
+            );
+          }
+
+          return (
+            <li key={regla.id}>
+              <button
+                type="button"
+                onClick={() =>
+                  onAbrirPunto({
+                    tipoId: documento.tipoId,
+                    reglaId: regla.id,
+                    reglaEtiqueta: regla.etiqueta,
+                    estado: regla.estado,
+                    documentoNombre: documento.nombre,
+                    documentoArchivo: documento.archivoEjemplo,
+                  })
+                }
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-bg ${fondoHallazgo}`}
+              >
+                <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0 self-start" />
+                <span className="flex-1 text-ink">{regla.etiqueta}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
