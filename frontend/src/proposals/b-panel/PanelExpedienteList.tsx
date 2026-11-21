@@ -11,7 +11,7 @@ interface Props {
   onQuitar: (id: string) => void;
   onReclasificar: (id: string, documentoId: string, tipo: TipoDocumental | null) => void;
   onAnalizar: () => void;
-  onVer: (documento: DocumentoParaVer) => void;
+  onVer?: (documento: DocumentoParaVer) => void;
 }
 
 export function PanelExpedienteList({ expedientes, onQuitar, onReclasificar, onAnalizar, onVer }: Props) {
@@ -52,7 +52,7 @@ export function PanelExpedienteList({ expedientes, onQuitar, onReclasificar, onA
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface shadow-sm">
+    <div data-tour="bandeja-expedientes" className="rounded-xl border border-border bg-surface shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold text-ink">Expedientes cargados</h2>
         <span className="text-xs font-medium text-muted">
@@ -104,6 +104,7 @@ export function PanelExpedienteList({ expedientes, onQuitar, onReclasificar, onA
       <div className="flex justify-end border-t border-border p-4">
         <motion.button
           type="button"
+          data-tour="boton-analizar"
           onClick={onAnalizar}
           disabled={listos === 0 || validando}
           initial={reducido ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}

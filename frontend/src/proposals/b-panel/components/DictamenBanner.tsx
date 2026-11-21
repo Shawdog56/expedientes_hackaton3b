@@ -42,6 +42,7 @@ export function DictamenBanner({ dictamen, documentos }: Props) {
 
   return (
     <motion.div
+      data-tour="recomendacion-inicial"
       initial={reducido ? { opacity: 0 } : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}

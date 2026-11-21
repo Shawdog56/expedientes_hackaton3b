@@ -77,6 +77,7 @@ export function FindingDrawer({ seleccion, onCerrar }: Props) {
             transition={transicionNormal}
           />
           <motion.div
+            data-tour="panel-hallazgo"
             role="dialog"
             aria-modal="true"
             aria-labelledby="panel-hallazgo-titulo"
@@ -93,6 +94,7 @@ export function FindingDrawer({ seleccion, onCerrar }: Props) {
               <button
                 ref={cerrarRef}
                 type="button"
+                data-tour="cerrar-hallazgo"
                 onClick={onCerrar}
                 aria-label="Cerrar panel"
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-bg hover:text-ink"

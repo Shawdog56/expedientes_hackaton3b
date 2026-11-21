@@ -20,7 +20,7 @@ interface Props {
   indice: number;
   onQuitar: (id: string) => void;
   onReclasificar: (id: string, documentoId: string, tipo: TipoDocumental | null) => void;
-  onVer: (documento: DocumentoParaVer) => void;
+  onVer?: (documento: DocumentoParaVer) => void;
 }
 
 const ETIQUETA_ORIGEN: Record<Expediente['origen'], string> = {
@@ -137,12 +137,15 @@ export function ExpedienteTableRow({ expediente, indice, onQuitar, onReclasifica
                             key={doc.id}
                             doc={doc}
                             onCambiarTipo={(tipo) => onReclasificar(expediente.id, doc.id, tipo)}
-                            onVer={() =>
-                              onVer({
-                                titulo: expediente.nombre,
-                                archivos: expediente.documentos.map(comoArchivoVisible),
-                                indiceInicial: expediente.documentos.findIndex((item) => item.id === doc.id),
-                              })
+                            onVer={
+                              onVer
+                                ? () =>
+                                    onVer({
+                                      titulo: expediente.nombre,
+                                      archivos: expediente.documentos.map(comoArchivoVisible),
+                                      indiceInicial: expediente.documentos.findIndex((item) => item.id === doc.id),
+                                    })
+                                : undefined
                             }
                           />
                         ))}

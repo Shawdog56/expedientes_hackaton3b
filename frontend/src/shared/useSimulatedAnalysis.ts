@@ -154,8 +154,11 @@ export function useSimulatedAnalysis() {
   );
 
   const iniciar = useCallback(
-    async (expedientes: Expediente[]) => {
+    async (expedientes: Expediente[], velocidad = 1) => {
       if (expedientes.length === 0) return;
+
+      const duracionEtapa = DURACION_ETAPA_MS / velocidad;
+      const duracionPunto = DURACION_PUNTO_MS / velocidad;
 
       canceladoRef.current = false;
       limpiarTimers();
@@ -168,7 +171,7 @@ export function useSimulatedAnalysis() {
         setIndiceActual(indice);
 
         actualizarExpediente(indice, { etapaActual: 'clasificar', progreso: 5 });
-        await esperar(DURACION_ETAPA_MS);
+        await esperar(duracionEtapa);
         if (canceladoRef.current) return;
 
         actualizarExpediente(indice, {
@@ -176,7 +179,7 @@ export function useSimulatedAnalysis() {
           etapaActual: 'extraer',
           progreso: 20,
         });
-        await esperar(DURACION_ETAPA_MS);
+        await esperar(duracionEtapa);
         if (canceladoRef.current) return;
 
         actualizarExpediente(indice, {
@@ -198,7 +201,7 @@ export function useSimulatedAnalysis() {
           for (const regla of tipo.reglas) {
             if (canceladoRef.current) return;
             actualizarRegla(indice, tipo.id, regla.id, 'validando');
-            await esperar(DURACION_PUNTO_MS);
+            await esperar(duracionPunto);
             if (canceladoRef.current) return;
 
             actualizarRegla(indice, tipo.id, regla.id, resultadoRegla(tipo.id, regla.id, false));
@@ -215,7 +218,7 @@ export function useSimulatedAnalysis() {
           etapaActual: 'validacion_cruzada',
           progreso: 60,
         });
-        await esperar(DURACION_ETAPA_MS);
+        await esperar(duracionEtapa);
         if (canceladoRef.current) return;
 
         actualizarExpediente(indice, {
@@ -223,7 +226,7 @@ export function useSimulatedAnalysis() {
           etapaActual: 'dictamen',
           progreso: 80,
         });
-        await esperar(DURACION_ETAPA_MS);
+        await esperar(duracionEtapa);
         if (canceladoRef.current) return;
 
         setAnalisis((actuales) => {
@@ -246,7 +249,7 @@ export function useSimulatedAnalysis() {
           );
         });
 
-        await esperar(DURACION_ETAPA_MS / 2);
+        await esperar(duracionEtapa / 2);
         if (canceladoRef.current) return;
       }
 
