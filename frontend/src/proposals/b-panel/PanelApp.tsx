@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, type Variants } from 'motion/react';
 import { GraduationCap } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useReducer, useState } from 'react';
 import { EXPEDIENTES_DEMO } from '../../shared/datosDemo';
 import { useExpedientes } from '../../shared/hooks/useExpedientes';
 import { CURVA_SALIDA, DURACION, useAnimaciones } from '../../shared/motion';
@@ -16,6 +16,21 @@ import { PanelHeader } from './PanelHeader';
 import { PanelSidebar } from './PanelSidebar';
 
 const VELOCIDAD_TUTORIAL = 4;
+
+interface EstadoTutorial {
+  activo: boolean;
+  /** Se incrementa al terminar/omitir; se usa como `key` para forzar un montaje limpio de la bandeja. */
+  sesion: number;
+}
+
+type AccionEstadoTutorial = 'iniciar' | 'terminar';
+
+// Una sola transición por acción (sin varios `set` en secuencia ni
+// temporizadores): "terminar" cambia `activo` e incrementa `sesion` a la vez.
+function reducirEstadoTutorial(estado: EstadoTutorial, accion: AccionEstadoTutorial): EstadoTutorial {
+  if (accion === 'iniciar') return { activo: true, sesion: estado.sesion };
+  return { activo: false, sesion: estado.sesion + 1 };
+}
 
 export function PanelApp() {
   const { expedientes, expedientesListos, agregarExpedientes, quitarExpediente, reclasificar, aviso } =
@@ -35,26 +50,30 @@ export function PanelApp() {
     reiniciar: reiniciarDemo,
   } = useSimulatedAnalysis();
 
-  const [tutorialActivo, setTutorialActivo] = useState(false);
+  const [estadoTutorial, dispatchTutorial] = useReducer(reducirEstadoTutorial, { activo: false, sesion: 0 });
   const { reducido } = useAnimaciones();
   const [documentoParaVer, setDocumentoParaVer] = useState<DocumentoParaVer | null>(null);
 
   const vistaReal = terminado ? 'resultados' : corriendo ? 'analisis' : 'bandeja';
   const vistaDemo = terminadoDemo ? 'resultados' : corriendoDemo ? 'analisis' : 'bandeja';
-  const vista = tutorialActivo ? vistaDemo : vistaReal;
+  const vista = estadoTutorial.activo ? vistaDemo : vistaReal;
 
-  const expedientesMostrados = tutorialActivo ? EXPEDIENTES_DEMO : expedientes;
-  const analisisMostrado = tutorialActivo ? analisisDemo : analisis;
-  const indiceActualMostrado = tutorialActivo ? indiceActualDemo : indiceActual;
-  const terminadoMostrado = tutorialActivo ? terminadoDemo : terminado;
+  const expedientesMostrados = estadoTutorial.activo ? EXPEDIENTES_DEMO : expedientes;
+  const analisisMostrado = estadoTutorial.activo ? analisisDemo : analisis;
+  const indiceActualMostrado = estadoTutorial.activo ? indiceActualDemo : indiceActual;
+  const terminadoMostrado = estadoTutorial.activo ? terminadoDemo : terminado;
 
   const iniciarTutorial = useCallback(() => {
     reiniciarDemo();
-    setTutorialActivo(true);
+    dispatchTutorial('iniciar');
   }, [reiniciarDemo]);
 
   const terminarTutorial = useCallback(() => {
-    setTutorialActivo(false);
+    // `activo` y `sesion` cambian juntos en un solo dispatch: lo que decide
+    // qué ve la persona (vista real + bandeja remontada) queda resuelto de
+    // una vez. `reiniciarDemo` aparte solo limpia el subsistema del tutorial
+    // (nunca se lee una vez `activo` es false, así que su orden no importa).
+    dispatchTutorial('terminar');
     reiniciarDemo();
   }, [reiniciarDemo]);
 
@@ -77,7 +96,7 @@ export function PanelApp() {
     <div className="flex min-h-screen flex-col bg-bg">
       <PanelHeader vista={vista} onIrInicio={reiniciar} onIniciarTutorial={iniciarTutorial} />
 
-      {tutorialActivo && (
+      {estadoTutorial.activo && (
         <div className="flex items-center justify-center gap-1.5 bg-accent/20 px-4 py-1.5 text-center text-xs font-semibold text-ink">
           <GraduationCap className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           Modo tutorial · datos de prueba
@@ -87,29 +106,30 @@ export function PanelApp() {
       <main className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[320px_1fr]">
         <PanelSidebar
           expedientesActuales={expedientesMostrados}
-          onExpedientesCargados={tutorialActivo ? () => {} : agregarExpedientes}
+          onExpedientesCargados={estadoTutorial.activo ? () => {} : agregarExpedientes}
         />
         <AnimatePresence mode="wait">
           <motion.div key={vista} initial="oculto" animate="visible" exit="oculto" variants={variantesVista}>
             {vista === 'bandeja' ? (
               <PanelExpedienteList
+                key={estadoTutorial.sesion}
                 expedientes={expedientesMostrados}
-                onQuitar={tutorialActivo ? () => {} : quitarExpediente}
-                onReclasificar={tutorialActivo ? () => {} : reclasificar}
+                onQuitar={estadoTutorial.activo ? () => {} : quitarExpediente}
+                onReclasificar={estadoTutorial.activo ? () => {} : reclasificar}
                 onAnalizar={() =>
-                  tutorialActivo ? iniciarDemo(EXPEDIENTES_DEMO, VELOCIDAD_TUTORIAL) : iniciar(expedientesListos)
+                  estadoTutorial.activo ? iniciarDemo(EXPEDIENTES_DEMO, VELOCIDAD_TUTORIAL) : iniciar(expedientesListos)
                 }
                 // Los datos del tutorial no tienen archivos en el servidor: no se ofrece el visor.
-                onVer={tutorialActivo ? undefined : setDocumentoParaVer}
+                onVer={estadoTutorial.activo ? undefined : setDocumentoParaVer}
               />
             ) : (
               <ValidationView
                 analisis={analisisMostrado}
                 indiceActual={indiceActualMostrado}
                 terminado={terminadoMostrado}
-                onReiniciar={tutorialActivo ? () => {} : reiniciar}
+                onReiniciar={estadoTutorial.activo ? () => {} : reiniciar}
                 onVerArchivos={
-                  tutorialActivo
+                  estadoTutorial.activo
                     ? undefined
                     : (documento) => setDocumentoParaVer({ titulo: documento.nombre, archivos: documento.archivos })
                 }
@@ -126,7 +146,9 @@ export function PanelApp() {
       <Footer />
       <DocumentViewer documento={documentoParaVer} onCerrar={() => setDocumentoParaVer(null)} />
 
-      <Tutorial activo={tutorialActivo} contexto={contextoTutorial} onTerminar={terminarTutorial} />
+      {estadoTutorial.activo && (
+        <Tutorial activo={estadoTutorial.activo} contexto={contextoTutorial} onTerminar={terminarTutorial} />
+      )}
     </div>
   );
 }
