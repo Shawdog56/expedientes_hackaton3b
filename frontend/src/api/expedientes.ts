@@ -1,5 +1,6 @@
 import type {
   ArchivoRechazado,
+  DecisionFinal,
   DocumentoValidado,
   Expediente,
   TipoDocumental,
@@ -19,6 +20,9 @@ export interface ExpedienteServidor {
   tipos_faltantes: TipoDocumental[];
   tipos_duplicados: TipoDocumental[];
   completo: boolean;
+  decision_final: DecisionFinal | null;
+  decidido_en: string | null;
+  decidido_por: string | null;
 }
 
 export class ErrorValidacion extends Error {
@@ -73,4 +77,30 @@ export async function reclasificarDocumento(
 
 export async function eliminarExpediente(idServidor: string): Promise<void> {
   await fetch(`${BASE}/expedientes/${idServidor}`, { method: 'DELETE' });
+}
+
+/** Descarga el archivo original de un documento para mostrarlo en el visor. */
+export async function obtenerArchivo(documentoId: string, senal?: AbortSignal): Promise<Blob> {
+  const res = await fetch(`${BASE}/documentos/${documentoId}/archivo`, { signal: senal });
+  if (!res.ok) {
+    throw new Error(
+      res.status === 404
+        ? 'El archivo ya no está disponible en el servidor'
+        : `No se pudo cargar el archivo (error ${res.status})`,
+    );
+  }
+  return res.blob();
+}
+
+/** Registra la decisión final de la persona que revisa; devuelve el expediente actualizado. */
+export async function decidirExpediente(
+  idServidor: string,
+  decision: DecisionFinal,
+): Promise<ExpedienteServidor> {
+  const res = await fetch(`${BASE}/expedientes/${idServidor}/decision`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision }),
+  });
+  return leerRespuesta<ExpedienteServidor>(res);
 }

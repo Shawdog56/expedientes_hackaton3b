@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { useExpedientes } from '../../shared/hooks/useExpedientes';
+import type { DocumentoParaVer } from '../../shared/types/expediente';
 import { useSimulatedAnalysis } from '../../shared/useSimulatedAnalysis';
+import { DocumentViewer } from './components/DocumentViewer';
 import { ValidationView } from './components/ValidationView';
 import { PanelExpedienteList } from './PanelExpedienteList';
 import { PanelHeader } from './PanelHeader';
@@ -9,6 +12,7 @@ export function PanelApp() {
   const { expedientes, expedientesListos, agregarExpedientes, quitarExpediente, reclasificar, aviso } =
     useExpedientes();
   const { analisis, indiceActual, corriendo, terminado, iniciar, reiniciar } = useSimulatedAnalysis();
+  const [documentoParaVer, setDocumentoParaVer] = useState<DocumentoParaVer | null>(null);
 
   const enAnalisis = corriendo || terminado;
 
@@ -23,6 +27,9 @@ export function PanelApp() {
             indiceActual={indiceActual}
             terminado={terminado}
             onReiniciar={reiniciar}
+            onVerArchivos={(documento) =>
+              setDocumentoParaVer({ titulo: documento.nombre, archivos: documento.archivos })
+            }
           />
         ) : (
           <PanelExpedienteList
@@ -30,6 +37,7 @@ export function PanelApp() {
             onQuitar={quitarExpediente}
             onReclasificar={reclasificar}
             onAnalizar={() => iniciar(expedientesListos)}
+            onVer={setDocumentoParaVer}
           />
         )}
         {aviso && (
@@ -38,6 +46,7 @@ export function PanelApp() {
           </p>
         )}
       </main>
+      <DocumentViewer documento={documentoParaVer} onCerrar={() => setDocumentoParaVer(null)} />
     </div>
   );
 }

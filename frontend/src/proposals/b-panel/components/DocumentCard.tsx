@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Eye } from 'lucide-react';
 import type { DocumentoAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { EstadoIcono } from './EstadoIcono';
 import type { PuntoSeleccionado } from './FindingDrawer';
@@ -9,9 +9,10 @@ interface Props {
   enValidacion: boolean;
   interactivo: boolean;
   onAbrirPunto: (punto: PuntoSeleccionado) => void;
+  onVerArchivos: () => void;
 }
 
-export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunto }: Props) {
+export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunto, onVerArchivos }: Props) {
   const total = documento.reglas.length;
   const resueltos = documento.reglas.filter(
     (regla) => regla.estado !== 'pendiente' && regla.estado !== 'validando',
@@ -56,6 +57,16 @@ export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunt
           >
             {documento.archivo ?? 'Documento faltante en el expediente'}
           </p>
+          {documento.archivos.length > 0 && (
+            <button
+              type="button"
+              onClick={onVerArchivos}
+              className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-ink transition-colors hover:border-brand/50 hover:bg-bg"
+            >
+              <Eye className="h-3 w-3" aria-hidden="true" />
+              {documento.archivos.length === 1 ? 'Ver archivo' : `Ver archivos (${documento.archivos.length})`}
+            </button>
+          )}
         </div>
         <ProgressRing estado={estadoAnillo} resueltos={resueltos} total={total} etiqueta={etiquetaAnillo} />
       </div>

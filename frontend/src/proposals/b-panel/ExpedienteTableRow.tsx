@@ -2,8 +2,10 @@ import { AlertCircle, ChevronDown, ChevronRight, FileArchive, Files, Folder, Tra
 import { useState } from 'react';
 import { ChipTipo, FilaDocumento, Resumen } from '../../shared/components/ClasificacionExpediente';
 import {
+  comoArchivoVisible,
   ETIQUETA_TIPO,
   TIPOS_DOCUMENTALES,
+  type DocumentoParaVer,
   type Expediente,
   type TipoDocumental,
 } from '../../shared/types/expediente';
@@ -15,6 +17,7 @@ interface Props {
   expediente: Expediente;
   onQuitar: (id: string) => void;
   onReclasificar: (id: string, documentoId: string, tipo: TipoDocumental | null) => void;
+  onVer: (documento: DocumentoParaVer) => void;
 }
 
 const ETIQUETA_ORIGEN: Record<Expediente['origen'], string> = {
@@ -33,7 +36,7 @@ function etiquetas(tipos: TipoDocumental[]): string {
   return tipos.map((tipo) => ETIQUETA_TIPO[tipo]).join(', ');
 }
 
-export function ExpedienteTableRow({ expediente, onQuitar, onReclasificar }: Props) {
+export function ExpedienteTableRow({ expediente, onQuitar, onReclasificar, onVer }: Props) {
   const sinClasificar = expediente.documentos.filter((doc) => doc.tipo_documental === null);
   const [verDetalle, setVerDetalle] = useState<boolean | null>(null);
   // Se abre sola si hay documentos que requieren clasificación manual.
@@ -119,6 +122,13 @@ export function ExpedienteTableRow({ expediente, onQuitar, onReclasificar }: Pro
                           key={doc.id}
                           doc={doc}
                           onCambiarTipo={(tipo) => onReclasificar(expediente.id, doc.id, tipo)}
+                          onVer={() =>
+                            onVer({
+                              titulo: expediente.nombre,
+                              archivos: expediente.documentos.map(comoArchivoVisible),
+                              indiceInicial: expediente.documentos.findIndex((item) => item.id === doc.id),
+                            })
+                          }
                         />
                       ))}
                   </ul>

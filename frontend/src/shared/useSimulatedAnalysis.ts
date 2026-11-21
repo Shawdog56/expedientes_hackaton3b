@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Expediente } from './types/expediente';
+import { comoArchivoVisible, type ArchivoVisible, type Expediente } from './types/expediente';
 import {
   ETAPAS,
   REGLAS_VALIDACION,
@@ -25,6 +25,8 @@ export interface DocumentoAnalisis {
   /** Archivo(s) del expediente clasificados con este tipo; null si el documento falta. */
   archivo: string | null;
   faltante: boolean;
+  /** Archivos clasificados con este tipo, para abrirlos en el visor. */
+  archivos: ArchivoVisible[];
   reglas: EstadoRegla[];
 }
 
@@ -32,6 +34,8 @@ export type Dictamen = 'cumple' | 'revision' | 'no_cumple';
 
 export interface ExpedienteAnalisis {
   expedienteId: string;
+  /** Id en el servidor, necesario para registrar la decisión final. */
+  idServidor?: string;
   nombre: string;
   etapaActual: Etapa | null;
   etapasCompletadas: Etapa[];
@@ -56,6 +60,7 @@ function crearDocumentosIniciales(expediente: Expediente): DocumentoAnalisis[] {
           : primero.nombre
         : null,
       faltante: !primero,
+      archivos: encontrados.map(comoArchivoVisible),
       reglas: tipo.reglas.map((regla) => ({ id: regla.id, etiqueta: regla.etiqueta, estado: 'pendiente' as const })),
     };
   });
@@ -64,6 +69,7 @@ function crearDocumentosIniciales(expediente: Expediente): DocumentoAnalisis[] {
 function crearExpedienteAnalisis(expediente: Expediente): ExpedienteAnalisis {
   return {
     expedienteId: expediente.id,
+    idServidor: expediente.idServidor,
     nombre: expediente.nombre,
     etapaActual: null,
     etapasCompletadas: [],

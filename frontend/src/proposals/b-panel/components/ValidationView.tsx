@@ -1,6 +1,9 @@
+import { ArrowRight, CircleCheck, CircleX, Lock } from 'lucide-react';
 import { useState } from 'react';
-import type { ExpedienteAnalisis } from '../../../shared/useSimulatedAnalysis';
+import type { DocumentoAnalisis, ExpedienteAnalisis } from '../../../shared/useSimulatedAnalysis';
+import { useDecisionFinal } from '../useDecisionFinal';
 import { CompetitionTab } from './CompetitionTab';
+import { DecisionFinalPanel } from './DecisionFinalPanel';
 import { DictamenBanner } from './DictamenBanner';
 import { DocumentCard } from './DocumentCard';
 import { ExpedienteSwitcher } from './ExpedienteSwitcher';
@@ -12,11 +15,18 @@ interface Props {
   indiceActual: number;
   terminado: boolean;
   onReiniciar: () => void;
+  onVerArchivos: (documento: DocumentoAnalisis) => void;
 }
 
-type Pestana = 'validaciones' | 'competencia';
+type Pestana = 'validaciones' | 'competencia' | 'decision';
 
-export function ValidationView({ analisis, indiceActual, terminado, onReiniciar }: Props) {
+const PESTANAS: { id: Pestana; etiqueta: string }[] = [
+  { id: 'validaciones', etiqueta: 'Validaciones' },
+  { id: 'competencia', etiqueta: 'Zona y competencia' },
+  { id: 'decision', etiqueta: 'Decisión final' },
+];
+
+export function ValidationView({ analisis, indiceActual, terminado, onReiniciar, onVerArchivos }: Props) {
   // Mientras corre, la selección sigue al expediente en curso (derivado, sin
   // estado propio). Al terminar, el usuario puede elegir libremente; se
   // recuerda el último índice en curso como punto de partida (ajustado
@@ -34,6 +44,9 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
 
   const [pestana, setPestana] = useState<Pestana>('validaciones');
   const [puntoAbierto, setPuntoAbierto] = useState<PuntoSeleccionado | null>(null);
+  // Expedientes cuya pestaña "Zona y competencia" ya se abrió: sin verla no se habilita la decisión final.
+  const [zonaRevisada, setZonaRevisada] = useState<Record<string, true>>({});
+  const { porExpediente, decidir, sinDecision } = useDecisionFinal();
 
   const seleccionarExpediente = (indice: number) => {
     setSeleccionManual(indice);
@@ -44,6 +57,16 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
   if (!actual) return null;
 
   const finalizado = actual.dictamen !== null;
+  const revisoZona = zonaRevisada[actual.expedienteId] === true;
+  const estadoDecision = porExpediente[actual.expedienteId] ?? sinDecision;
+
+  const abrirPestana = (destino: Pestana) => {
+    if (destino === 'decision' && !revisoZona) return;
+    if (destino === 'competencia') {
+      setZonaRevisada((actuales) => ({ ...actuales, [actual.expedienteId]: true }));
+    }
+    setPestana(destino);
+  };
 
   const bloqueValidaciones = (
     <div className="space-y-5">
@@ -62,6 +85,7 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
             enValidacion={actual.documentoEnValidacion === documento.tipoId}
             interactivo={finalizado}
             onAbrirPunto={setPuntoAbierto}
+            onVerArchivos={() => onVerArchivos(documento)}
           />
         ))}
       </div>
@@ -101,41 +125,71 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
       {finalizado ? (
         <div>
           <div role="tablist" aria-label="Secciones del expediente" className="flex gap-1 border-b border-border">
-            <button
-              type="button"
-              role="tab"
-              id="tab-validaciones"
-              aria-selected={pestana === 'validaciones'}
-              aria-controls="panel-validaciones"
-              onClick={() => setPestana('validaciones')}
-              className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                pestana === 'validaciones' ? 'border-brand text-ink' : 'border-transparent text-muted hover:text-ink'
-              }`}
-            >
-              Validaciones
-            </button>
-            <button
-              type="button"
-              role="tab"
-              id="tab-competencia"
-              aria-selected={pestana === 'competencia'}
-              aria-controls="panel-competencia"
-              onClick={() => setPestana('competencia')}
-              className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                pestana === 'competencia' ? 'border-brand text-ink' : 'border-transparent text-muted hover:text-ink'
-              }`}
-            >
-              Zona y competencia
-            </button>
+            {PESTANAS.map(({ id, etiqueta }) => {
+              const bloqueada = id === 'decision' && !revisoZona;
+              const activa = pestana === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  id={`tab-${id}`}
+                  aria-selected={activa}
+                  aria-controls={`panel-${id}`}
+                  aria-disabled={bloqueada || undefined}
+                  title={bloqueada ? 'Revisa primero la pestaña Zona y competencia' : undefined}
+                  onClick={() => abrirPestana(id)}
+                  className={`inline-flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                    activa ? 'border-brand text-ink' : 'border-transparent text-muted'
+                  } ${bloqueada ? 'cursor-not-allowed opacity-60' : 'hover:text-ink'}`}
+                >
+                  {bloqueada && <Lock className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {etiqueta}
+                  {id === 'decision' && estadoDecision.decision === 'aceptado' && (
+                    <CircleCheck className="h-4 w-4 text-ok" aria-label="Aceptado" />
+                  )}
+                  {id === 'decision' && estadoDecision.decision === 'rechazado' && (
+                    <CircleX className="h-4 w-4 text-error" aria-label="Rechazado" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {pestana === 'validaciones' ? (
-            <div role="tabpanel" id="panel-validaciones" aria-labelledby="tab-validaciones" className="pt-4">
+          {pestana === 'validaciones' && (
+            <div role="tabpanel" id="panel-validaciones" aria-labelledby="tab-validaciones" className="space-y-4 pt-4">
               {bloqueValidaciones}
+              {!revisoZona && (
+                <p className="text-sm text-muted">
+                  Siguiente paso: revisa <strong className="font-medium text-ink">Zona y competencia</strong> para
+                  habilitar la decisión final.
+                </p>
+              )}
             </div>
-          ) : (
-            <div role="tabpanel" id="panel-competencia" aria-labelledby="tab-competencia" className="pt-4">
+          )}
+          {pestana === 'competencia' && (
+            <div role="tabpanel" id="panel-competencia" aria-labelledby="tab-competencia" className="space-y-4 pt-4">
               <CompetitionTab />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => abrirPestana('decision')}
+                  className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2.5 font-medium text-white transition-colors hover:bg-brand-dark"
+                >
+                  Continuar a la decisión final
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
+          {pestana === 'decision' && (
+            <div role="tabpanel" id="panel-decision" aria-labelledby="tab-decision" className="pt-4">
+              <DecisionFinalPanel
+                key={actual.expedienteId}
+                analisis={actual}
+                estado={estadoDecision}
+                onDecidir={(decision) => void decidir(actual.expedienteId, actual.idServidor, decision)}
+              />
             </div>
           )}
         </div>

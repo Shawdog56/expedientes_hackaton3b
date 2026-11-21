@@ -65,3 +65,25 @@ export const TIPOS_DOCUMENTALES: { valor: TipoDocumental; etiqueta: string }[] =
 export const ETIQUETA_TIPO: Record<TipoDocumental, string> = Object.fromEntries(
   TIPOS_DOCUMENTALES.map(({ valor, etiqueta }) => [valor, etiqueta]),
 ) as Record<TipoDocumental, string>;
+
+/** Decisión de la persona que revisa el expediente al final del flujo. */
+export type DecisionFinal = 'aceptado' | 'rechazado';
+
+/** Archivo de un expediente que se puede abrir en el visor. */
+export interface ArchivoVisible {
+  id: string;
+  nombre: string;
+  formato: FormatoArchivo;
+  paginas: number;
+}
+
+/** Lo que se abre en el visor: un título y los archivos entre los que se puede navegar. */
+export interface DocumentoParaVer {
+  titulo: string;
+  archivos: ArchivoVisible[];
+  indiceInicial?: number;
+}
+
+export function comoArchivoVisible(doc: DocumentoValidado): ArchivoVisible {
+  return { id: doc.id, nombre: doc.nombre, formato: doc.formato, paginas: doc.paginas };
+}

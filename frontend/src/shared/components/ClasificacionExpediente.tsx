@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  Eye,
   File as FileIcon,
   Loader2,
   XCircle,
@@ -78,9 +79,12 @@ export function ChipTipo({ expediente, tipo, etiqueta }: { expediente: Expedient
 export function FilaDocumento({
   doc,
   onCambiarTipo,
+  onVer,
 }: {
   doc: DocumentoValidado;
   onCambiarTipo: (tipo: TipoDocumental | null) => void;
+  /** Si se indica, muestra el botón para abrir el archivo en el visor. */
+  onVer?: () => void;
 }) {
   const sinTipo = doc.tipo_documental === null;
   return (
@@ -121,6 +125,17 @@ export function FilaDocumento({
           ))}
         </select>
         {doc.estado_clasificacion === 'manual' && <span className="text-xs text-muted">(manual)</span>}
+        {onVer && (
+          <button
+            type="button"
+            onClick={onVer}
+            aria-label={`Ver el archivo ${doc.nombre}`}
+            className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-ink transition-colors hover:border-brand/50 hover:bg-bg"
+          >
+            <Eye className="h-3 w-3" aria-hidden="true" />
+            Ver
+          </button>
+        )}
       </div>
     </li>
   );

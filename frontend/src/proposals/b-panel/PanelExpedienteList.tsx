@@ -1,6 +1,6 @@
 import { Inbox, Sparkles } from 'lucide-react';
 import { EXPLICACION_EXPEDIENTE } from '../../shared/constants';
-import type { Expediente, TipoDocumental } from '../../shared/types/expediente';
+import type { DocumentoParaVer, Expediente, TipoDocumental } from '../../shared/types/expediente';
 import { esExpedienteListo } from '../../shared/utils/expediente';
 import { ExpedienteTableRow } from './ExpedienteTableRow';
 
@@ -9,9 +9,10 @@ interface Props {
   onQuitar: (id: string) => void;
   onReclasificar: (id: string, documentoId: string, tipo: TipoDocumental | null) => void;
   onAnalizar: () => void;
+  onVer: (documento: DocumentoParaVer) => void;
 }
 
-export function PanelExpedienteList({ expedientes, onQuitar, onReclasificar, onAnalizar }: Props) {
+export function PanelExpedienteList({ expedientes, onQuitar, onReclasificar, onAnalizar, onVer }: Props) {
   const listos = expedientes.filter(esExpedienteListo).length;
   const validando = expedientes.some((expediente) => expediente.estado === 'validando');
 
@@ -65,6 +66,7 @@ export function PanelExpedienteList({ expedientes, onQuitar, onReclasificar, onA
                 expediente={expediente}
                 onQuitar={onQuitar}
                 onReclasificar={onReclasificar}
+                onVer={onVer}
               />
             ))}
           </tbody>
