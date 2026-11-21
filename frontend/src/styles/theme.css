@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand: #e30613; /* rojo 3B (provisional, verificar contra el logo) */
+  --color-brand-dark: #b0000e; /* hover / estados activos */
+  --color-brand-soft: #fdecee; /* fondos suaves, dropzone activa */
+  --color-accent: #ffc20e; /* acento amarillo (provisional) */
+  --color-ink: #1f1f1f; /* texto principal */
+  --color-muted: #6b6b6b; /* texto secundario */
+  --color-surface: #ffffff; /* tarjetas */
+  --color-bg: #f6f6f6; /* fondo general */
+  --color-border: #e4e4e4;
+  --color-ok: #1e9e5a; /* Cumple */
+  --color-warn: #e8a317; /* Requiere revision */
+  --color-error: #c62828; /* No cumple */
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
