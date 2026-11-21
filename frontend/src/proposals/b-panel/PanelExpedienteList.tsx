@@ -1,6 +1,6 @@
 import { Inbox, Sparkles } from 'lucide-react';
-import { EXPLICACION_EXPEDIENTE } from '../../shared/constants';
 import type { Expediente } from '../../shared/types/expediente';
+import { REGLAS_VALIDACION } from '../../shared/validationRules';
 import { ExpedienteTableRow } from './ExpedienteTableRow';
 
 interface Props {
@@ -12,10 +12,26 @@ interface Props {
 export function PanelExpedienteList({ expedientes, onQuitar, onAnalizar }: Props) {
   if (expedientes.length === 0) {
     return (
-      <div className="flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-12 text-center">
-        <Inbox className="mb-3 h-8 w-8 text-muted" aria-hidden="true" />
-        <p className="font-medium text-ink">La bandeja está vacía</p>
-        <p className="mx-auto mt-1 max-w-md text-sm text-muted">{EXPLICACION_EXPEDIENTE}</p>
+      <div className="rounded-xl border border-dashed border-border bg-surface p-6">
+        <div className="flex items-center gap-3">
+          <Inbox className="h-6 w-6 shrink-0 text-muted" aria-hidden="true" />
+          <div>
+            <p className="text-[18px] font-semibold text-ink">La bandeja está vacía</p>
+            <p className="text-sm text-muted">Un expediente completo incluye estos 4 documentos:</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {REGLAS_VALIDACION.map((tipo) => (
+            <div key={tipo.id} className="flex items-start gap-3 rounded-[12px] border border-border bg-surface p-4">
+              <tipo.Icono className="h-[30px] w-[30px] shrink-0 text-brand" aria-hidden="true" />
+              <div>
+                <p className="text-[15px] font-semibold text-ink">{tipo.nombre}</p>
+                <p className="text-[13px] text-muted">{tipo.descripcionCorta}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

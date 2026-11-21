@@ -1,4 +1,5 @@
 import { ChevronRight, FileX } from 'lucide-react';
+import { REGLAS_VALIDACION } from '../../../shared/validationRules';
 import type { DocumentoAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { EstadoIcono } from './EstadoIcono';
 import type { SeleccionHallazgo } from './FindingDrawer';
@@ -12,13 +13,18 @@ interface Props {
 }
 
 export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunto }: Props) {
+  const Icono = REGLAS_VALIDACION.find((tipo) => tipo.id === documento.tipoId)?.Icono;
+
   if (documento.faltante) {
     return (
       <div className="flex flex-col gap-3 rounded-xl border border-dashed border-border bg-[#FAFAFA] p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="font-medium text-ink">{documento.nombre}</p>
-            <p className="text-xs text-muted">No se encontró en el expediente</p>
+          <div className="flex min-w-0 items-start gap-2">
+            {Icono && <Icono className="mt-0.5 h-5 w-5 shrink-0 text-muted" aria-hidden="true" />}
+            <div className="min-w-0">
+              <p className="font-medium text-ink">{documento.nombre}</p>
+              <p className="text-xs text-muted">No se encontró en el expediente</p>
+            </div>
           </div>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg">
             <FileX className="h-6 w-6 text-muted" aria-hidden="true" />
@@ -72,9 +78,12 @@ export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunt
   return (
     <div className={`flex flex-col gap-3 rounded-xl bg-surface p-4 shadow-sm ${bordeClase}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-medium text-ink">{documento.nombre}</p>
-          <p className="truncate text-xs text-muted">{documento.archivoEjemplo}</p>
+        <div className="flex min-w-0 items-start gap-2">
+          {Icono && <Icono className="mt-0.5 h-5 w-5 shrink-0 text-muted" aria-hidden="true" />}
+          <div className="min-w-0">
+            <p className="font-medium text-ink">{documento.nombre}</p>
+            <p className="truncate text-xs text-muted">{documento.archivoEjemplo}</p>
+          </div>
         </div>
         <ProgressRing estado={estadoAnillo} resueltos={resueltos} total={total} etiqueta={etiquetaAnillo} />
       </div>
@@ -101,7 +110,6 @@ export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunt
                 type="button"
                 onClick={() =>
                   onAbrirPunto({
-                    origen: 'punto',
                     tipoId: documento.tipoId,
                     reglaId: regla.id,
                     reglaEtiqueta: regla.etiqueta,

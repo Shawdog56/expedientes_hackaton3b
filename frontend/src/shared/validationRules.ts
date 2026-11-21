@@ -1,3 +1,5 @@
+import { Hash, Receipt, ScrollText, Store, type LucideIcon } from 'lucide-react';
+
 export type TipoDocumentalId = 'escrituras' | 'predial' | 'alineamiento' | 'uso_suelo';
 
 export type EstadoValidacion = 'pendiente' | 'validando' | 'verificado' | 'revisar' | 'no_cumple';
@@ -13,6 +15,9 @@ export interface TipoDocumentalRegla {
   id: TipoDocumentalId;
   nombre: string;
   archivoEjemplo: string;
+  /** Mismo ícono en toda la app: bandeja vacía, tarjetas de validación, etc. */
+  Icono: LucideIcon;
+  descripcionCorta: string;
   reglas: ReglaValidacion[];
 }
 
@@ -21,6 +26,8 @@ export const REGLAS_VALIDACION: TipoDocumentalRegla[] = [
     id: 'escrituras',
     nombre: 'Escrituras',
     archivoEjemplo: 'escritura_publica_84521.pdf',
+    Icono: ScrollText,
+    descripcionCorta: 'Titular, dirección y superficie del terreno',
     reglas: [
       { id: 'titular', etiqueta: 'Identificación del propietario o titular' },
       { id: 'direccion', etiqueta: 'Dirección e identificación del inmueble' },
@@ -33,6 +40,8 @@ export const REGLAS_VALIDACION: TipoDocumentalRegla[] = [
     id: 'predial',
     nombre: 'Predial',
     archivoEjemplo: 'boleta_predial_2026.pdf',
+    Icono: Receipt,
+    descripcionCorta: 'Contribuyente, cuenta predial y superficie',
     reglas: [
       { id: 'contribuyente', etiqueta: 'Propietario o contribuyente' },
       { id: 'direccion', etiqueta: 'Dirección del inmueble' },
@@ -45,6 +54,8 @@ export const REGLAS_VALIDACION: TipoDocumentalRegla[] = [
     id: 'alineamiento',
     nombre: 'Alineamiento y Número Oficial',
     archivoEjemplo: 'alineamiento_numero_oficial.pdf',
+    Icono: Hash,
+    descripcionCorta: 'Dirección oficial, vigencia y autoridad',
     reglas: [
       { id: 'direccion_oficial', etiqueta: 'Dirección oficial del inmueble' },
       { id: 'numero_oficial', etiqueta: 'Número oficial asignado' },
@@ -58,6 +69,8 @@ export const REGLAS_VALIDACION: TipoDocumentalRegla[] = [
     id: 'uso_suelo',
     nombre: 'Uso de Suelo',
     archivoEjemplo: 'constancia_uso_suelo.pdf',
+    Icono: Store,
+    descripcionCorta: 'Uso autorizado y compatibilidad comercial',
     reglas: [
       { id: 'direccion', etiqueta: 'Dirección e identificación del inmueble' },
       { id: 'uso_autorizado', etiqueta: 'Uso de suelo autorizado' },

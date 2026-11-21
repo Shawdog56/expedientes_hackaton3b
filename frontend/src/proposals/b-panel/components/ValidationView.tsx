@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import type { ExpedienteAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { CompetitionTab } from './CompetitionTab';
-import { CrossValidationTab } from './CrossValidationTab';
 import { DictamenBanner } from './DictamenBanner';
 import { DocumentCard } from './DocumentCard';
 import { DocumentosResumen } from './DocumentosResumen';
 import { ExpedienteSwitcher } from './ExpedienteSwitcher';
-import { ExtractedDataTab } from './ExtractedDataTab';
 import { FindingDrawer, type SeleccionHallazgo } from './FindingDrawer';
 import { StageBar } from './StageBar';
 
@@ -17,12 +15,10 @@ interface Props {
   onReiniciar: () => void;
 }
 
-type Pestana = 'validaciones' | 'cruzada' | 'datos' | 'competencia';
+type Pestana = 'validaciones' | 'competencia';
 
 const PESTANAS: { id: Pestana; etiqueta: string }[] = [
   { id: 'validaciones', etiqueta: 'Validaciones' },
-  { id: 'cruzada', etiqueta: 'Validación cruzada' },
-  { id: 'datos', etiqueta: 'Datos extraídos' },
   { id: 'competencia', etiqueta: 'Zona y competencia' },
 ];
 
@@ -54,11 +50,9 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
   if (!actual) return null;
 
   const finalizado = actual.dictamen !== null;
-  const documentosFaltantes = actual.documentos.filter((documento) => documento.faltante).map((d) => d.nombre);
 
   const bloqueValidaciones = (
     <div className="space-y-5">
-      <DocumentosResumen documentos={actual.documentos} archivosNoReconocidos={actual.archivosNoReconocidos} />
       <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
         <StageBar
           etapaActual={actual.etapaActual}
@@ -107,16 +101,15 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
       </div>
 
       {finalizado && actual.dictamen && (
-        <DictamenBanner
-          dictamen={actual.dictamen}
-          totalDocumentos={actual.documentos.length}
-          documentosFaltantes={documentosFaltantes}
-        />
+        <>
+          <DictamenBanner dictamen={actual.dictamen} documentos={actual.documentos} />
+          <DocumentosResumen archivosNoReconocidos={actual.archivosNoReconocidos} />
+        </>
       )}
 
       {finalizado ? (
         <div>
-          <div role="tablist" aria-label="Secciones del expediente" className="flex flex-wrap gap-1 border-b border-border">
+          <div role="tablist" aria-label="Secciones del expediente" className="flex gap-1 border-b border-border">
             {PESTANAS.map((item) => (
               <button
                 key={item.id}
@@ -137,10 +130,6 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
 
           <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`tab-${pestana}`} className="pt-4">
             {pestana === 'validaciones' && bloqueValidaciones}
-            {pestana === 'cruzada' && (
-              <CrossValidationTab documentos={actual.documentos} onAbrirFila={setHallazgoAbierto} />
-            )}
-            {pestana === 'datos' && <ExtractedDataTab documentos={actual.documentos} onAbrirDato={setHallazgoAbierto} />}
             {pestana === 'competencia' && <CompetitionTab />}
           </div>
         </div>
