@@ -11,4 +11,5 @@
 - Los subagentes de Claude no pueden lanzar otros subagentes: el orquestador
   debe ser la sesión principal (`claude --agent orchestrator` o pedir a la
   sesión que siga la skill `orchestrate`).
-- Para delegar trabajo en Codex, sigue la skill `dispatch-codex`.
+- Codex es opcional: el flujo completo funciona solo con Claude. Solo si el
+  usuario lo pide, delega trabajo en Codex con la skill `dispatch-codex`.

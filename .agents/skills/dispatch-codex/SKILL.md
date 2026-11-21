@@ -1,9 +1,12 @@
 ---
 name: dispatch-codex
-description: Lanza un implementador, revisor o explorador de Codex sobre un worktree de expedientes_hackaton3b con codex exec (si el CLI está disponible) o mediante un brief para la app de Codex.
+description: Opcional. Lanza un implementador, revisor o explorador de Codex sobre un worktree de expedientes_hackaton3b con codex exec (si el CLI está disponible) o mediante un brief para la app de Codex. Úsala solo si el usuario pidió trabajar con Codex.
 ---
 
 # Despachar trabajo a Codex
+
+> **Opcional.** El proyecto funciona solo con Claude. Usa esta skill únicamente
+> si el usuario pidió trabajar con Codex; si no, ignórala y usa `dispatch-claude`.
 
 ## Detección
 

@@ -1,12 +1,12 @@
 ---
 name: claim-feature
-description: Reclama, actualiza o libera features del tablero compartido .agents/feature_list.json de forma segura cuando Claude y Codex trabajan a la vez. Úsala antes de empezar una feature y al terminarla.
+description: Reclama, actualiza o libera features del tablero compartido .agents/feature_list.json de forma segura cuando varias sesiones o agentes trabajan a la vez (Claude, y Codex si se usa). Úsala antes de empezar una feature y al terminarla.
 ---
 
 # Reclamar features del tablero
 
-El tablero es compartido por sesiones de Claude y de Codex que pueden correr al
-mismo tiempo. Nunca edites `.agents/feature_list.json` a mano: usa el script,
+El tablero puede ser compartido por varias sesiones o subagentes a la vez
+(normalmente todos de Claude; Codex es opcional). Nunca edites `.agents/feature_list.json` a mano: usa el script,
 que serializa las escrituras con candados atómicos (`mkdir`) en
 `.agents/locks/` del checkout principal, aunque lo ejecutes desde un worktree.
 
@@ -20,7 +20,7 @@ pwsh .agents/scripts/claim.ps1 -Action list
 pwsh .agents/scripts/claim.ps1 -Action ready
 
 # Reclamar
-pwsh .agents/scripts/claim.ps1 -Action claim -Id F-002 -Engine codex
+pwsh .agents/scripts/claim.ps1 -Action claim -Id F-002 -Engine claude
 
 # Cambiar estado (review, done, blocked, pending)
 pwsh .agents/scripts/claim.ps1 -Action set -Id F-002 -Status review -Note "pytest 18/18"
@@ -54,13 +54,16 @@ pending -> in_progress -> review -> done
   `worktree`.
 - Las notas se acumulan en `notes` con fecha y motor.
 
-## Modo de dos sesiones pares
+## Modo de sesiones pares (opcional)
 
-Si Claude y Codex trabajan como sesiones independientes (sin orquestador
-único), cada uno:
+Si dos sesiones trabajan de forma independiente (sin orquestador único), sean
+dos de Claude o una de Claude y otra de Codex, cada una:
 
 1. Ejecuta `-Action ready` y reclama una feature con su `-Engine`.
 2. Crea su worktree y trabaja como `implementer`.
 3. Al pasar a `review`, avisa al usuario para que la otra sesión la revise con
    la skill `cross-review`.
 4. Solo una de las dos sesiones, la que el usuario designe, integra en `main`.
+
+Una sola sesión trabajando sola no necesita este modo ni worktree: reclama la
+feature y trabaja en una rama normal.

@@ -1,8 +1,8 @@
-# AGENTS.md - Mapa operativo para agentes (Claude y Codex)
+# AGENTS.md - Mapa operativo para agentes (Claude; Codex es opcional)
 
 Fuente única de verdad para cualquier agente que trabaje en
-`expedientes_hackaton3b`, sea Claude Code o Codex. Los archivos `AGENTS.md` y
-`CLAUDE.md` de la raíz solo apuntan aquí.
+`expedientes_hackaton3b`, sea Claude Code o, si se usa, Codex. Los archivos
+`AGENTS.md` y `CLAUDE.md` de la raíz solo apuntan aquí.
 
 ## 1. Arranque obligatorio
 
@@ -32,19 +32,31 @@ Fuente única de verdad para cualquier agente que trabaje en
 | `.agents/` | Backlog, roles, reglas, skills y scripts de orquestación |
 | `.claude/` | Espejo generado de `.agents/` para Claude Code (no editar a mano) |
 
-## 3. Modelo de orquestación Claude + Codex
+## 3. Modelo de orquestación (Claude; Codex opcional)
+
+**Codex no es necesario.** El flujo completo funciona solo con Claude. Codex se
+suma únicamente cuando el usuario lo pide y está disponible; en ese caso se
+aplican las reglas de "dos motores" de cada punto.
+
+| Situación | Cómo se trabaja |
+|---|---|
+| **Un solo agente, sin otra feature en vuelo** (lo habitual) | Reclama la feature con `-Engine claude` y trabaja en una rama normal del checkout principal. No hace falta worktree. |
+| **Varias features a la vez, solo Claude** | El orquestador lanza varios subagentes de Claude, cada uno con su worktree (`-Engine claude`). |
+| **Claude + Codex en paralelo** | Un worktree por feature y motor, con las skills `dispatch-claude` y `dispatch-codex`. |
 
 - **Un solo escritor del tablero.** `.agents/feature_list.json` solo se modifica
   con `.agents/scripts/claim.ps1`, que usa candados atómicos en
   `.agents/locks/` del checkout principal. Funciona igual desde un worktree.
-- **Un worktree por feature y motor.** Cada implementador trabaja en
-  `../expedientes_hackaton3b-wt/<motor>-<id>` sobre la rama
+- **Un worktree por feature cuando hay trabajo en paralelo.** Cada implementador
+  trabaja en `../expedientes_hackaton3b-wt/<motor>-<id>` sobre la rama
   `agent/<motor>/<id>-<nombre>`. Se crea con `.agents/scripts/agent-worktree.ps1`.
+  Si solo hay un agente trabajando, basta una rama normal del checkout principal.
 - **Propiedad de archivos.** Cada feature declara `files`. Dos features en
   `in_progress` no pueden compartir archivos; el script lo impide.
-- **Revisión cruzada.** Lo que implementa Claude lo revisa Codex y al revés
-  (skill `cross-review`). Si solo hay un motor disponible, revisa una instancia
-  limpia del mismo motor.
+- **Revisión independiente.** Quien revisa no es quien implementó (skill
+  `cross-review`). Con Codex, lo que implementa Claude lo revisa Codex y al
+  revés. Sin Codex, revisa una instancia limpia de Claude, el subagente
+  `reviewer` sin el contexto del implementador.
 - **Integración solo por el orquestador.** Los implementadores nunca hacen merge
   a `main` ni confirman cambios en `.agents/feature_list.json`.
 

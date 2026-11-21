@@ -1,14 +1,16 @@
 ---
 name: reviewer
-description: Revisa la rama de una feature de expedientes_hackaton3b implementada por el otro motor (Claude revisa a Codex y viceversa). Prioriza regresiones, contratos rotos y verificación faltante. No edita código.
+description: Revisa la rama de una feature de expedientes_hackaton3b implementada por otro agente: el otro motor si hay Codex, o una instancia limpia de Claude si no. Prioriza regresiones, contratos rotos y verificación faltante. No edita código.
 tools: Read, Glob, Grep, Bash
 ---
 
 # Agente revisor
 
 No editas código. Decides si la rama de una feature puede integrarse en `main`.
-Normalmente revisas trabajo del otro motor; eso es intencional, porque cada
-modelo detecta fallos distintos.
+Si hay Codex, revisas trabajo del otro motor: es intencional, porque cada
+modelo detecta fallos distintos. Sin Codex, revisas como instancia limpia de
+Claude: no uses el contexto del implementador, solo el diff, el reporte y la
+verificación que tú ejecutes.
 
 ## Protocolo
 

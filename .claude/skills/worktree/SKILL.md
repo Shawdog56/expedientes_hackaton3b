@@ -1,12 +1,13 @@
 ---
 name: worktree
-description: Crea, lista, integra y elimina worktrees de git aislados por feature y motor (Claude o Codex) en expedientes_hackaton3b, y verifica cada uno en Docker sin chocar con el stack principal.
+description: Crea, lista, integra y elimina worktrees de git aislados por feature y motor (Claude, y Codex si se usa) en expedientes_hackaton3b, y verifica cada uno en Docker sin chocar con el stack principal. Solo hacen falta cuando hay trabajo en paralelo.
 ---
 
 # Worktrees por feature
 
-Cada implementador trabaja en su propio worktree para que Claude y Codex puedan
-editar en paralelo sin pisarse.
+Cada implementador trabaja en su propio worktree para que varios agentes puedan
+editar en paralelo sin pisarse. Si solo hay un agente y ninguna otra feature en
+vuelo, no lo necesitas: trabaja en una rama normal del checkout principal.
 
 - Ruta: `../expedientes_hackaton3b-wt/<motor>-<id>`
 - Rama: `agent/<motor>/<id>-<nombre>` desde `main`
