@@ -41,15 +41,50 @@ function IndicadorConfianza({ confianza, porcentaje }: { confianza: Confianza; p
   );
 }
 
+/**
+ * La explicación del backend viene en Markdown simple (títulos con #, negritas con ** y viñetas):
+ * se muestra como texto con formato, sin los símbolos.
+ */
+function ExplicacionFormateada({ texto }: { texto: string }) {
+  const lineas = texto
+    .split('\n')
+    .map((linea) => linea.trim())
+    .filter(Boolean);
+
+  return (
+    <div className="mt-4 space-y-1.5 text-[15px] leading-[23px] text-ink">
+      {lineas.map((linea, indice) => {
+        const limpia = linea.replace(/\*\*/g, '').replace(/^#+\s*/, '');
+        if (/^#+\s/.test(linea)) {
+          return (
+            <p key={indice} className="font-semibold">
+              {limpia}
+            </p>
+          );
+        }
+        if (/^[-*•]\s/.test(linea)) {
+          return (
+            <p key={indice} className="pl-4 -indent-3">
+              • {limpia.replace(/^[-*•]\s*/, '')}
+            </p>
+          );
+        }
+        return <p key={indice}>{limpia}</p>;
+      })}
+    </div>
+  );
+}
+
 export function DictamenBanner({ dictamen, documentos, resultadoReal }: Props) {
   const { reducido } = useAnimaciones();
   const faltantes = documentos.filter((documento) => documento.faltante);
   const documentosFaltantes = faltantes.map((documento) => documento.nombre);
   const ejemplo = obtenerResumenDictamen(dictamen, { documentosFaltantes });
   const confianza = resultadoReal ? nivelDeConfianza(resultadoReal.confianza_veredicto) : ejemplo.confianza;
-  const porQue = resultadoReal?.explicacion?.trim() || ejemplo.porQue;
-  const criticos = resultadoReal?.hallazgos_criticos ?? [];
-  const advertencias = resultadoReal?.hallazgos_advertencias ?? [];
+  const explicacionReal = resultadoReal?.explicacion?.trim();
+  // La explicación real ya enumera los hallazgos: la lista aparte solo se muestra si no la hay.
+  const criticos = explicacionReal ? [] : (resultadoReal?.hallazgos_criticos ?? []);
+  const advertencias = explicacionReal ? [] : (resultadoReal?.hallazgos_advertencias ?? []);
 
   return (
     <motion.div
@@ -76,7 +111,11 @@ export function DictamenBanner({ dictamen, documentos, resultadoReal }: Props) {
         </div>
       </div>
 
-      <p className="mt-4 whitespace-pre-line text-[15px] leading-[23px] text-ink">{porQue}</p>
+      {explicacionReal ? (
+        <ExplicacionFormateada texto={explicacionReal} />
+      ) : (
+        <p className="mt-4 text-[15px] leading-[23px] text-ink">{ejemplo.porQue}</p>
+      )}
 
       {(criticos.length > 0 || advertencias.length > 0) && (
         <ul className="mt-4 space-y-1.5 border-t border-border pt-4">
