@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, BinaryIO, Optional
 
@@ -17,6 +18,13 @@ import pymupdf
 from app.agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
+
+# El motor PaddleOCR tarda varios segundos en cargar sus modelos: se crea una sola vez por proceso
+# y se comparte. El candado evita que dos OCR usen el mismo motor a la vez (no es seguro entre hilos).
+_MOTOR_COMPARTIDO: Any = None
+_MOTOR_CARGADO = False
+_CANDADO_MOTOR = threading.Lock()
+_CANDADO_OCR = threading.Lock()
 
 # Extensiones reconocidas para extracción
 EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png"}
@@ -35,26 +43,39 @@ class OCRAgent(BaseAgent):
         "con ordenamiento geométrico cuando los documentos son escaneados o imágenes."
     )
 
-    def __init__(self, engine: Any = None, dpi: int = 300, quality: str = "fast") -> None:
+    def __init__(
+        self,
+        engine: Any = None,
+        dpi: int = 300,
+        quality: str = "fast",
+        usar_muestras: bool = False,
+    ) -> None:
         self.dpi = dpi
         self.quality = quality
         self._engine = engine
         self._engine_initialized = engine is not None
+        # Solo para pruebas: si el OCR falla, buscar un texto de muestra con el mismo nombre de
+        # archivo. Nunca en el flujo real: auditaría el texto de otro documento.
+        self.usar_muestras = usar_muestras
 
     def _obtener_engine(self) -> Any:
-        """Inicializa perezosamente el motor PaddleOCR para no bloquear el inicio si no se usa."""
-        if not self._engine_initialized:
-            try:
-                from app.agents.prueba3b.extract_pdf import create_engine
+        """Motor PaddleOCR compartido por el proceso, creado la primera vez que se necesita."""
+        global _MOTOR_COMPARTIDO, _MOTOR_CARGADO
+        if self._engine_initialized:
+            return self._engine
+        with _CANDADO_MOTOR:
+            if not _MOTOR_CARGADO:
+                try:
+                    from app.agents.prueba3b.extract_pdf import create_engine
 
-                self._engine = create_engine(language="es", device="cpu")
-                logger.info("Motor PaddleOCR inicializado correctamente.")
-            except Exception as e:
-                logger.warning(
-                    "No se pudo inicializar PaddleOCR (%s). Se usará extracción nativa o fallback.", e
-                )
-                self._engine = None
-            self._engine_initialized = True
+                    _MOTOR_COMPARTIDO = create_engine(language="es", device="cpu")
+                    logger.info("Motor PaddleOCR inicializado correctamente.")
+                except Exception as e:
+                    logger.warning("No se pudo inicializar PaddleOCR (%s). Solo habrá extracción nativa.", e)
+                    _MOTOR_COMPARTIDO = None
+                _MOTOR_CARGADO = True
+        self._engine = _MOTOR_COMPARTIDO
+        self._engine_initialized = True
         return self._engine
 
     def _buscar_muestra_local(self, nombre_archivo: str) -> Optional[str]:
@@ -173,12 +194,13 @@ class OCRAgent(BaseAgent):
             try:
                 from app.agents.prueba3b.extract_pdf import extract
 
-                resultado_ocr = extract(
-                    path=ruta,
-                    engine=engine,
-                    dpi=self.dpi,
-                    quality=self.quality,
-                )
+                with _CANDADO_OCR:
+                    resultado_ocr = extract(
+                        path=ruta,
+                        engine=engine,
+                        dpi=self.dpi,
+                        quality=self.quality,
+                    )
                 paginas = resultado_ocr.get("pages", [])
                 texto_paginas = [
                     f"--- Página {p['page']} ---\n{p['text']}"
@@ -212,8 +234,8 @@ class OCRAgent(BaseAgent):
             except Exception as exc:
                 logger.warning("Fallo durante ejecución de PaddleOCR en %s: %s", nombre_archivo, exc)
 
-        # Subcaso 2.4: Fallback con muestra pre-extraída si existe en samples
-        muestra = self._buscar_muestra_local(nombre_archivo)
+        # Subcaso 2.4: solo en pruebas, muestra pre-extraída con el mismo nombre de archivo
+        muestra = self._buscar_muestra_local(nombre_archivo) if self.usar_muestras else None
         if muestra:
             return {
                 "texto": muestra,

@@ -20,6 +20,7 @@ from app.schemas.expedientes import (
     ReclasificarDocumento,
     TipoDocumentalOut,
 )
+from app.services import auditorias
 from app.services import expedientes as svc
 from app.services.expediente_service import ExpedienteService
 
@@ -256,3 +257,36 @@ async def auditar_expediente_guardado(
     resultado["expediente_id"] = str(expediente_id)
     resultado["nombre_expediente"] = expediente.nombre
     return resultado
+
+
+@router.post("/expedientes/{expediente_id}/auditoria", status_code=status.HTTP_202_ACCEPTED)
+async def iniciar_auditoria(
+    expediente_id: uuid.UUID,
+    anio_referencia: Optional[int] = None,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Inicia la auditoría con agentes (OCR, modelo de lenguaje y validación cruzada) en segundo plano.
+
+    Responde de inmediato con el estado; el progreso y el resultado se consultan con
+    GET /expedientes/{id}/auditoria. Si ya hay una en curso, devuelve esa.
+    """
+    try:
+        expediente = svc.obtener_expediente(db, expediente_id)
+    except LookupError:
+        raise HTTPException(404, "Expediente no encontrado") from None
+    try:
+        estado = auditorias.iniciar(expediente_id, list(expediente.documentos), anio_referencia)
+    except LookupError:
+        raise HTTPException(
+            422, "El expediente no cuenta con archivos físicos disponibles en disco para auditar."
+        ) from None
+    return estado.como_dict()
+
+
+@router.get("/expedientes/{expediente_id}/auditoria")
+def consultar_auditoria(expediente_id: uuid.UUID) -> dict[str, Any]:
+    """Progreso de la auditoría (etapa y documentos listos) y, al terminar, su resultado."""
+    estado = auditorias.obtener(expediente_id)
+    if estado is None:
+        raise HTTPException(404, "No hay una auditoría iniciada para este expediente")
+    return estado.como_dict()

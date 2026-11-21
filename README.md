@@ -63,6 +63,20 @@ El modelo (`qwen2.5:3b`) corre en **un contenedor**, `ollama`. El servicio `olla
 - El contenedor no publica puertos: la API de Ollama no tiene autenticación y solo la usa el backend.
 - **Para procesar más documentos a la vez**, agrega en `docker-compose.yml` otro servicio igual a `ollama` (por ejemplo `ollama-2`, con el mismo volumen y `OLLAMA_NOPRUNE: "1"` en ambos para que no se borren las descargas entre sí) y lista las dos URL en `OLLAMA_BASE_URLS`. El backend ya reparte las peticiones entre todas las instancias que encuentre ahí.
 
+### Análisis real de un expediente
+
+El botón **Analizar** del panel ejecuta la auditoría real con agentes:
+
+1. **OCR** (PaddleOCR) de cada documento escaneado o imagen; los PDF con texto digital se leen directo. La primera vez descarga sus modelos (unos cientos de MB) al volumen `paddle_modelos`.
+2. **Modelo de lenguaje**: clasifica cada documento y extrae sus datos (titular, dirección, superficie, clave catastral, uso de suelo...).
+3. **Validación** de cada documento y **validación cruzada** del expediente (claves catastrales, superficies, titulares, vigencia del predial, compatibilidad comercial).
+4. **Dictamen**: cumple, requiere revisión o no cumple, con su confianza, la explicación y los hallazgos.
+
+La interfaz muestra el avance real (etapa y documentos leídos) y, al terminar, el dictamen, el estado de cada punto de validación y, al abrir un punto, los datos que extrajo el modelo. En CPU tarda varios minutos por expediente. Los archivos se descifran solo en copias temporales que se borran al terminar.
+
+- API: `POST /api/expedientes/{id}/auditoria` la inicia en segundo plano y `GET /api/expedientes/{id}/auditoria` devuelve el progreso y el resultado. El resultado vive en memoria del backend: se pierde si se reinicia.
+- El **tutorial** sigue usando datos de ejemplo, y la pestaña **Zona y competencia** todavía muestra competencia de ejemplo.
+
 ## Dependencias
 
 ```powershell

@@ -63,6 +63,8 @@ services:
     volumes:
       - ./backend:/app
       - expedientes_data:/data/expedientes
+      # Modelos de PaddleOCR: se descargan la primera vez que se hace OCR y se conservan aquí.
+      - paddle_modelos:/root/.paddlex
     environment:
       WATCHFILES_FORCE_POLLING: "true"
     depends_on:
@@ -87,4 +89,5 @@ services:
 volumes:
   expedientes_data:
   pgdata:
+  paddle_modelos:
   ollama_data:

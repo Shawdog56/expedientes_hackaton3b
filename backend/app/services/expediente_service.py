@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, BinaryIO, Optional
+from typing import Any, BinaryIO, Callable, Optional
 
 try:
     from app.agents.clasificador import ClasificadorAgent
@@ -89,6 +89,7 @@ class ExpedienteService:
         self,
         archivos: list[tuple[str, Path | bytes | BinaryIO]],
         anio_referencia: Optional[int] = None,
+        al_avanzar: Optional[Callable[[dict[str, Any]], None]] = None,
     ) -> dict[str, Any]:
         """Flujo completo desde archivos físicos o subidos:
 
@@ -118,20 +119,34 @@ class ExpedienteService:
                 "documentos": [],
             }
 
-        # Ejecución concurrente del OCR + Clasificador por archivo
-        tareas = [
-            self.extraer_y_clasificar_documento(contenido, nombre=nombre)
-            for nombre, contenido in archivos
-        ]
+        # `al_avanzar` recibe el progreso (etapa y documentos listos) para mostrarlo en la interfaz.
+        def avisar(**evento: Any) -> None:
+            if al_avanzar is not None:
+                al_avanzar({"documentos_total": len(archivos), **evento})
+
+        listos = 0
+
+        async def procesar(indice: int, nombre: str, contenido: Any) -> dict[str, Any]:
+            nonlocal listos
+            avisar(etapa="extraer", documentos_listos=listos, documento_en_curso=indice)
+            resultado = await self.extraer_y_clasificar_documento(contenido, nombre=nombre)
+            listos += 1
+            avisar(etapa="extraer", documentos_listos=listos, documento_terminado=indice)
+            return resultado
+
+        # Ejecución concurrente del OCR + Clasificador por archivo (gather conserva el orden)
+        tareas = [procesar(i, nombre, contenido) for i, (nombre, contenido) in enumerate(archivos)]
         documentos_clasificados = await asyncio.gather(*tareas)
 
         # Validación individual y normalización
+        avisar(etapa="validar_reglas", documentos_listos=listos)
         documentos_procesados = [
             validar_documento_individual(doc, anio_referencia=anio_referencia)
             for doc in documentos_clasificados
         ]
 
         # Validación cruzada del expediente
+        avisar(etapa="validacion_cruzada", documentos_listos=listos)
         dictamen = validar_expediente_cruzado(
             documentos=documentos_procesados,
             anio_referencia=anio_referencia,
