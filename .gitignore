@@ -18,3 +18,6 @@ dist/
 
 # Claves y secretos generados (scripts/generar_claves.py)
 backend/secretos/
+
+# Volcados del repositorio generados con repomix (para dar contexto a un LLM)
+repomix-output.*

@@ -57,12 +57,11 @@ Las migraciones se aplican solas al arrancar el backend. El código se monta com
 
 ### Modelo de lenguaje (Ollama)
 
-El modelo (`qwen2.5:3b`) corre en **dos contenedores**, `ollama-1` y `ollama-2`, para procesar dos documentos al mismo tiempo cuando se analiza un lote. El servicio `ollama-pull` descarga el modelo una sola vez en el volumen que ambos comparten (unos 2 GB la primera vez).
+El modelo (`qwen2.5:3b`) corre en **un contenedor**, `ollama`. El servicio `ollama-pull` lo descarga en su volumen la primera vez (unos 2 GB) y después se reutiliza.
 
-- El backend reparte las peticiones entre las instancias (`OLLAMA_BASE_URLS`). Cada instancia atiende una petición a la vez; si las dos están ocupadas, la siguiente espera su turno. Esto vale para los documentos de un lote y para peticiones de varias personas a la vez.
-- Cada instancia mantiene el modelo cargado: cuenta con **unos 2 GB de RAM por instancia**. Sin GPU, las dos comparten los núcleos del equipo, así que el beneficio depende de cuántos tengas.
-- Los contenedores no publican puertos: la API de Ollama no tiene autenticación y solo la usa el backend.
-- Para más instancias, agrega un servicio `ollama-3: *ollama` en `docker-compose.yml` y su URL en `OLLAMA_BASE_URLS`.
+- La instancia atiende una petición a la vez y mantiene el modelo cargado (cuenta con **unos 3 a 4 GB de RAM**). Si llegan varias, por ejemplo los documentos de un lote, el backend las encola y las procesa en orden.
+- El contenedor no publica puertos: la API de Ollama no tiene autenticación y solo la usa el backend.
+- **Para procesar más documentos a la vez**, agrega en `docker-compose.yml` otro servicio igual a `ollama` (por ejemplo `ollama-2`, con el mismo volumen y `OLLAMA_NOPRUNE: "1"` en ambos para que no se borren las descargas entre sí) y lista las dos URL en `OLLAMA_BASE_URLS`. El backend ya reparte las peticiones entre todas las instancias que encuentre ahí.
 
 ## Dependencias
 

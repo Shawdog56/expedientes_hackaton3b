@@ -206,7 +206,7 @@ if (-not $SinEsperarModelo) {
     if ($idPull -and $estado -notlike '* 0') {
         Write-Aviso "La descarga del modelo terminó con estado '$estado'. Revisa: docker compose logs ollama-pull"
     }
-    foreach ($instancia in 'ollama-1', 'ollama-2') {
+    foreach ($instancia in 'ollama') {
         $lista = (& docker compose exec -T $instancia ollama list 2>$null) -join "`n"
         if ($lista -match [regex]::Escape($Modelo)) {
             Write-Host "    $instancia tiene el modelo $Modelo." -ForegroundColor Green
