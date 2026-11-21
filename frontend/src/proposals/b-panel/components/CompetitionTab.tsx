@@ -1,8 +1,9 @@
-import 'leaflet/dist/leaflet.css';
-import { MapPin } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { Circle, CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
+import type { Circle as LeafletCircle } from 'leaflet';
+import { Loader2, MapPin } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Circle, CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
 import { distanciaHaversineMetros } from '../../../shared/geo';
+import { TESELAS_OSM, TESELAS_PRINCIPALES } from '../../../shared/mapTiles';
 import { COLOR_CADENA, TIENDAS_EJEMPLO, type Cadena } from '../../../shared/mockCompetencia';
 import { UBICACION_EJEMPLO } from '../../../shared/mockResults';
 
@@ -14,16 +15,75 @@ const OPCIONES_RADIO: { valor: RadioKm; etiqueta: string }[] = [
   { valor: 2, etiqueta: '2 km' },
 ];
 
+const LIMITE_ERRORES_TESELA = 3;
+const TIEMPO_LIMITE_CARGA_MS = 8000;
+
 function leerColorToken(variable: string, respaldo: string): string {
   if (typeof window === 'undefined') return respaldo;
   const valor = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
   return valor || respaldo;
 }
 
+/** Corrige el tamaño de Leaflet al montar y cuando el contenedor cambia de tamaño. */
+function MapResizeFix() {
+  const map = useMap();
+
+  useEffect(() => {
+    const contenedor = map.getContainer();
+
+    const corregir = () => {
+      requestAnimationFrame(() => map.invalidateSize());
+    };
+
+    corregir();
+
+    const observer = new ResizeObserver(() => corregir());
+    observer.observe(contenedor);
+
+    return () => observer.disconnect();
+  }, [map]);
+
+  return null;
+}
+
+interface RadiusCircleProps {
+  centro: [number, number];
+  radioMetros: number;
+  color: string;
+}
+
+/** Dibuja el círculo del radio y ajusta la vista para que quepa completo. */
+function RadiusCircle({ centro, radioMetros, color }: RadiusCircleProps) {
+  const map = useMap();
+  const circuloRef = useRef<LeafletCircle>(null);
+
+  useEffect(() => {
+    const circulo = circuloRef.current;
+    if (!circulo) return;
+    map.fitBounds(circulo.getBounds(), { padding: [24, 24] });
+  }, [map, radioMetros, centro]);
+
+  return (
+    <Circle
+      ref={circuloRef}
+      center={centro}
+      radius={radioMetros}
+      pathOptions={{ color, weight: 2, dashArray: '6 6', fillColor: color, fillOpacity: 0.06 }}
+    />
+  );
+}
+
 export function CompetitionTab() {
   const [radioKm, setRadioKm] = useState<RadioKm>(1);
+  const [intento, setIntento] = useState(0);
+  const [usarRespaldo, setUsarRespaldo] = useState(false);
+  const [cargado, setCargado] = useState(false);
+  const [fallo, setFallo] = useState(false);
+  const erroresTeselaRef = useRef(0);
+
   const { direccion, fuente, coincide, coordenadas } = UBICACION_EJEMPLO;
   const colorBrand = useMemo(() => leerColorToken('--color-brand', '#EB1C24'), []);
+  const centro = useMemo<[number, number]>(() => [coordenadas.lat, coordenadas.lng], [coordenadas]);
 
   const tiendasConDistancia = useMemo(
     () =>
@@ -54,6 +114,29 @@ export function CompetitionTab() {
   }, [tiendasEnRadio]);
 
   const etiquetaRadio = OPCIONES_RADIO.find((opcion) => opcion.valor === radioKm)?.etiqueta ?? '';
+
+  useEffect(() => {
+    if (cargado) return;
+    const id = window.setTimeout(() => setFallo(true), TIEMPO_LIMITE_CARGA_MS);
+    return () => window.clearTimeout(id);
+  }, [intento, cargado]);
+
+  const manejarErrorTesela = () => {
+    erroresTeselaRef.current += 1;
+    if (erroresTeselaRef.current > LIMITE_ERRORES_TESELA) {
+      setUsarRespaldo(true);
+    }
+  };
+
+  const reintentar = () => {
+    erroresTeselaRef.current = 0;
+    setUsarRespaldo(false);
+    setCargado(false);
+    setFallo(false);
+    setIntento((valor) => valor + 1);
+  };
+
+  const teselas = usarRespaldo ? TESELAS_OSM : TESELAS_PRINCIPALES;
 
   return (
     <div className="space-y-4">
@@ -96,49 +179,74 @@ export function CompetitionTab() {
         </div>
       </div>
 
-      <div className="h-[420px] overflow-hidden rounded-xl border border-border">
+      <div className="relative h-[420px] w-full overflow-hidden rounded-xl border border-border">
         <MapContainer
-          center={[coordenadas.lat, coordenadas.lng]}
+          key={intento}
+          center={centro}
           zoom={15}
           scrollWheelZoom={false}
+          preferCanvas
           className="h-full w-full"
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            key={usarRespaldo ? 'osm' : 'carto'}
+            url={teselas.url}
+            attribution={teselas.attribution}
+            updateWhenIdle
+            keepBuffer={2}
+            eventHandlers={{
+              load: () => setCargado(true),
+              tileerror: manejarErrorTesela,
+            }}
           />
-          <Circle
-            center={[coordenadas.lat, coordenadas.lng]}
-            radius={radioMetros}
-            pathOptions={{ color: colorBrand, weight: 2, dashArray: '6 6', fillColor: colorBrand, fillOpacity: 0.06 }}
-          />
-          <CircleMarker
-            center={[coordenadas.lat, coordenadas.lng]}
-            radius={9}
-            pathOptions={{ color: '#FFFFFF', weight: 2, fillColor: colorBrand, fillOpacity: 1 }}
-          >
-            <Popup>{direccion}</Popup>
-          </CircleMarker>
-          {tiendasConDistancia.map((tienda) => (
+
+          <RadiusCircle centro={centro} radioMetros={radioMetros} color={colorBrand} />
+
+          {tiendasEnRadio.map((tienda) => (
             <CircleMarker
               key={tienda.id}
               center={[tienda.lat, tienda.lng]}
-              radius={7}
-              pathOptions={{
-                color: '#FFFFFF',
-                weight: 1.5,
-                fillColor: COLOR_CADENA[tienda.cadena],
-                fillOpacity: tienda.distancia <= radioMetros ? 1 : 0.25,
-              }}
+              radius={8}
+              pathOptions={{ color: '#FFFFFF', weight: 2, fillColor: COLOR_CADENA[tienda.cadena], fillOpacity: 1 }}
             >
               <Popup>
-                {tienda.nombre}
-                <br />
-                {Math.round(tienda.distancia)} m
+                {tienda.nombre} · {Math.round(tienda.distancia)} m
               </Popup>
             </CircleMarker>
           ))}
+
+          <CircleMarker
+            center={centro}
+            radius={10}
+            pathOptions={{ color: '#FFFFFF', weight: 3, fillColor: colorBrand, fillOpacity: 1 }}
+          >
+            <Popup>{direccion}</Popup>
+          </CircleMarker>
+
+          <MapResizeFix />
         </MapContainer>
+
+        {!cargado && (
+          <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center gap-2 bg-bg/90">
+            {fallo ? (
+              <>
+                <p className="text-sm font-medium text-ink">No se pudo cargar el mapa</p>
+                <button
+                  type="button"
+                  onClick={reintentar}
+                  className="text-sm font-medium text-brand underline underline-offset-2 hover:no-underline"
+                >
+                  Reintentar
+                </button>
+              </>
+            ) : (
+              <>
+                <Loader2 className="h-6 w-6 animate-spin text-brand motion-reduce:animate-none" aria-hidden="true" />
+                <p className="text-sm text-muted">Cargando mapa…</p>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-surface shadow-sm">
