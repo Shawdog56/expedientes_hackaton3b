@@ -3,8 +3,8 @@ import type {
   DocumentoValidado,
   Expediente,
   TipoDocumental,
-} from '../types/expediente';
-import { esArchivoPermitido } from '../utils/tiposArchivo';
+} from '../shared/types/expediente';
+import { esArchivoPermitido } from '../shared/utils/tiposArchivo';
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api';
 
