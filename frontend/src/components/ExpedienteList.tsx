@@ -1,13 +1,14 @@
 import { FolderOpen } from 'lucide-react';
-import type { Expediente } from '../types/expediente';
+import type { Expediente, TipoDocumental } from '../types/expediente';
 import { ExpedienteCard } from './ExpedienteCard';
 
 interface Props {
   expedientes: Expediente[];
   onQuitar: (id: string) => void;
+  onReclasificar: (id: string, documentoId: string, tipo: TipoDocumental | null) => void;
 }
 
-export function ExpedienteList({ expedientes, onQuitar }: Props) {
+export function ExpedienteList({ expedientes, onQuitar, onReclasificar }: Props) {
   if (expedientes.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-surface px-6 py-10 text-center">
@@ -24,7 +25,12 @@ export function ExpedienteList({ expedientes, onQuitar }: Props) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {expedientes.map((expediente) => (
-        <ExpedienteCard key={expediente.id} expediente={expediente} onQuitar={onQuitar} />
+        <ExpedienteCard
+          key={expediente.id}
+          expediente={expediente}
+          onQuitar={onQuitar}
+          onReclasificar={onReclasificar}
+        />
       ))}
     </div>
   );

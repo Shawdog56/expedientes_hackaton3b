@@ -2,6 +2,7 @@ import { AlertCircle, FileArchive, FolderOpen, UploadCloud } from 'lucide-react'
 import { useRef, useState } from 'react';
 import type { ArchivoExpediente, Expediente } from '../types/expediente';
 import { listarArchivosDeEntry, obtenerEntryDesdeItem } from '../utils/readDroppedEntries';
+import { esArchivoDeSistema, esArchivoPermitido } from '../utils/tiposArchivo';
 
 interface Props {
   onExpedientesCargados: (expedientes: Expediente[]) => void;
@@ -10,14 +11,28 @@ interface Props {
 function crearExpediente(
   nombre: string,
   origen: Expediente['origen'],
-  archivos: ArchivoExpediente[],
+  todos: ArchivoExpediente[],
 ): Expediente {
+  // Prevalidación en el navegador: solo se suben PDF/ZIP. La validación real la hace el backend.
+  const archivos = todos.filter((archivo) => !esArchivoDeSistema(archivo.nombre));
+  const rechazados = archivos
+    .filter((archivo) => !esArchivoPermitido(archivo.nombre))
+    .map((archivo) => ({
+      ruta: archivo.ruta,
+      motivo: 'Tipo de archivo no permitido (solo PDF o ZIP)',
+    }));
+
   return {
     id: crypto.randomUUID(),
     nombre,
     origen,
     archivos,
     tamanoTotal: archivos.reduce((total, archivo) => total + archivo.tamano, 0),
+    estado: 'validando',
+    documentos: [],
+    rechazados,
+    tiposFaltantes: [],
+    tiposDuplicados: [],
   };
 }
 
@@ -94,7 +109,7 @@ export function UploadZone({ onExpedientesCargados }: Props) {
       const ruta = archivo.webkitRelativePath || archivo.name;
       const carpetaRaiz = ruta.split('/')[0] ?? archivo.name;
       const lista = grupos.get(carpetaRaiz) ?? [];
-      lista.push({ nombre: archivo.name, ruta, tamano: archivo.size });
+      lista.push({ nombre: archivo.name, ruta, tamano: archivo.size, file: archivo });
       grupos.set(carpetaRaiz, lista);
     }
 
@@ -114,7 +129,7 @@ export function UploadZone({ onExpedientesCargados }: Props) {
       .filter((archivo) => archivo.name.toLowerCase().endsWith('.zip'))
       .map((archivo) =>
         crearExpediente(archivo.name, 'zip', [
-          { nombre: archivo.name, ruta: archivo.name, tamano: archivo.size },
+          { nombre: archivo.name, ruta: archivo.name, tamano: archivo.size, file: archivo },
         ]),
       );
     onExpedientesCargados(nuevosExpedientes);

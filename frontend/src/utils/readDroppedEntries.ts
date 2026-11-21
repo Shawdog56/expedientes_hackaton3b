@@ -32,7 +32,8 @@ function obtenerArchivo(entry: FileSystemFileEntry): Promise<File> {
 
 /**
  * Recorre un FileSystemEntry (archivo o carpeta) solo para listar nombres,
- * rutas relativas y tamaños. Nunca lee el contenido de los archivos.
+ * rutas relativas y tamaños, y conserva la referencia al File para subirlo.
+ * Nunca lee el contenido de los archivos en el navegador.
  */
 export async function listarArchivosDeEntry(
   entry: FileSystemEntry,
@@ -42,7 +43,7 @@ export async function listarArchivosDeEntry(
 
   if (entry.isFile) {
     const archivo = await obtenerArchivo(entry as FileSystemFileEntry);
-    return [{ nombre: archivo.name, ruta, tamano: archivo.size }];
+    return [{ nombre: archivo.name, ruta, tamano: archivo.size, file: archivo }];
   }
 
   if (entry.isDirectory) {
