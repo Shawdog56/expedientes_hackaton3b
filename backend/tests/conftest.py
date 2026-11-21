@@ -1,3 +1,5 @@
+import base64
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -14,6 +16,16 @@ from app.main import app
 def storage_temporal(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "storage_dir", tmp_path)
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def claves_de_prueba(monkeypatch):
+    """Claves fijas solo para pruebas; nunca se usan fuera de pytest."""
+    monkeypatch.setattr(settings, "claves_cifrado", {"v1": base64.b64encode(b"1" * 32).decode()})
+    monkeypatch.setattr(settings, "clave_cifrado_activa", "v1")
+    monkeypatch.setattr(settings, "clave_indice", base64.b64encode(b"i" * 32).decode())
+    monkeypatch.setattr(settings, "pepper_password", base64.b64encode(b"p" * 32).decode())
+    monkeypatch.setattr(settings, "auth_requerida", False)
 
 
 @pytest.fixture

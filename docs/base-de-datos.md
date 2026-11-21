@@ -56,7 +56,7 @@ erDiagram
         string agente "agente_escrituras, agente_predial, ..."
         string modelo
         string estado
-        jsonb caracteristicas "campos extraídos"
+        text caracteristicas "campos extraídos (JSON cifrado)"
         float confianza
         text error
         timestamptz iniciada_en
@@ -66,7 +66,7 @@ erDiagram
         uuid id PK
         uuid expediente_id FK
         string resultado "cumple | requiere_revision | no_cumple"
-        text resumen
+        text resumen "cifrado"
         string modelo
         timestamptz creada_en
     }
@@ -75,15 +75,15 @@ erDiagram
         uuid validacion_id FK
         string regla
         string resultado "cumple | requiere_revision | no_cumple"
-        text mensaje
-        jsonb evidencia "valores comparados y documentos"
+        text mensaje "cifrado"
+        text evidencia "valores comparados y documentos (JSON cifrado)"
     }
 ```
 
 ## Decisiones
 
 - **Enums como `VARCHAR`** (no `ENUM` nativo de Postgres): agregar un tipo documental o un estado no requiere migración de tipos.
-- **`extracciones.caracteristicas` en JSONB**: cada agente devuelve campos distintos (folio, propietario, superficie, clave catastral, adeudo, uso permitido...). Se pueden consultar con operadores JSONB y, cuando los campos se estabilicen, validar con un esquema Pydantic por tipo.
+- **`extracciones.caracteristicas` es un JSON cifrado**: cada agente devuelve campos distintos (folio, propietario, superficie, clave catastral, adeudo, uso permitido...). Se guarda como texto cifrado con AES-256-GCM, por lo que no se consulta con operadores JSONB; para buscar por un campo se usa un índice ciego. Cuando los campos se estabilicen, se puede validar con un esquema Pydantic por tipo. Lo mismo aplica a `hallazgos.evidencia`, `hallazgos.mensaje` y `validaciones_cruzadas.resumen`. Ver [seguridad.md](seguridad.md).
 - **Una fila por intento de extracción**: si un agente falla y se reintenta, queda el historial; la vigente es la última `completada`.
 - **Documentos sin clasificar** quedan con `estado_extraccion = no_aplica` y no se envían a ningún agente hasta que se les asigne un tipo (`PATCH /api/documentos/{id}`).
 - **`sha256`** permite detectar el mismo PDF subido dos veces o reutilizar extracciones.

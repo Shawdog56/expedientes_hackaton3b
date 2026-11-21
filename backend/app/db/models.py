@@ -8,20 +8,17 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, DateTime, Enum, Float, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, DateTime, Enum, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
+from app.db.tipos import JSONCifrado, TextoCifrado
 from app.domain.documentos import AGENTE_POR_TIPO, EstadoClasificacion, FormatoArchivo, TipoDocumental
 from app.domain.estados import (  # noqa: F401  (reexportados para compatibilidad)
     EstadoExpediente,
     EstadoExtraccion,
     ResultadoValidacion,
 )
-
-JSONType = JSON().with_variant(JSONB(), "postgresql")
-
 
 def ahora() -> datetime:
     return datetime.now(UTC)
@@ -155,7 +152,10 @@ class Extraccion(Base):
         enum_col(EstadoExtraccion), default=EstadoExtraccion.EN_PROCESO
     )
     # Características extraídas, p. ej. {"folio": "...", "propietario": "...", "superficie_m2": 120}
-    caracteristicas: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    # Se guarda cifrado (AES-256-GCM): en la base es texto ilegible.
+    caracteristicas: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONCifrado("extracciones.caracteristicas")
+    )
     confianza: Mapped[float | None] = mapped_column(Float)
     error: Mapped[str | None] = mapped_column(Text)
     iniciada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
@@ -174,7 +174,7 @@ class ValidacionCruzada(Base):
         ForeignKey("expedientes.id", ondelete="CASCADE"), index=True
     )
     resultado: Mapped[ResultadoValidacion] = mapped_column(enum_col(ResultadoValidacion))
-    resumen: Mapped[str | None] = mapped_column(Text)
+    resumen: Mapped[str | None] = mapped_column(TextoCifrado("validaciones_cruzadas.resumen"))
     modelo: Mapped[str | None] = mapped_column(String(100))
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
@@ -195,8 +195,8 @@ class Hallazgo(Base):
     )
     regla: Mapped[str] = mapped_column(String(100))
     resultado: Mapped[ResultadoValidacion] = mapped_column(enum_col(ResultadoValidacion))
-    mensaje: Mapped[str] = mapped_column(Text)
+    mensaje: Mapped[str] = mapped_column(TextoCifrado("hallazgos.mensaje"))
     # Valores comparados y documentos involucrados: {"escrituras": "Juan P.", "predial": "Juan Pérez", "documentos": [...]}
-    evidencia: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    evidencia: Mapped[dict[str, Any] | None] = mapped_column(JSONCifrado("hallazgos.evidencia"))
 
     validacion: Mapped[ValidacionCruzada] = relationship(back_populates="hallazgos")

@@ -15,3 +15,6 @@ dist/
 .vscode/
 .idea/
 .pytest_cache/
+
+# Claves y secretos generados (scripts/generar_claves.py)
+backend/secretos/

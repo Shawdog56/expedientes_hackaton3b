@@ -18,7 +18,7 @@ backend/    API FastAPI para los agentes (Python 3.12)
   alembic/            migraciones de la BD
   tests/              pytest
 frontend/   React + Vite (Node 22), proxy /api -> backend:8000
-docs/       base-de-datos.md (modelo de datos y flujo)
+docs/       base-de-datos.md (modelo de datos y flujo), seguridad.md (cifrado y tokens)
 docker-compose.yml   db (PostgreSQL 17) + backend + frontend
 ```
 
@@ -88,6 +88,16 @@ Para los agentes: `documentos_para_agentes(db, expediente_id)` agrupa por agente
 ### Base de datos
 
 Ver [docs/base-de-datos.md](docs/base-de-datos.md): diagrama, decisiones y cómo escribirán los agentes y el orquestador.
+
+### Seguridad
+
+Los datos sensibles de la base van cifrados (AES-256-GCM) y la API puede exigir tokens JWT firmados con RSA entre entidades. Antes de guardar extracciones hay que generar las claves: ver [docs/seguridad.md](docs/seguridad.md).
+
+```powershell
+docker compose run --rm --no-deps backend python scripts/generar_claves.py servidor
+```
+
+Pega las líneas que muestra en `backend/.env`.
 
 ## Pruebas
 
