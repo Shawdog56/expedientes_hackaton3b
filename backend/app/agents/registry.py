@@ -17,7 +17,7 @@ from app.domain.documentos import AGENTE_POR_TIPO, TipoDocumental
 
 logger = logging.getLogger(__name__)
 
-_MODULOS_INFRA = {"base", "contratos", "registry"}
+_MODULOS_INFRA = {"base", "contratos", "registry", "prueba3b"}
 
 _agentes: dict[str, BaseAgent] | None = None
 _errores: dict[str, str] = {}
