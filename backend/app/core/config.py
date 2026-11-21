@@ -10,8 +10,11 @@ class Settings(BaseSettings):
     environment: str = "development"
     cors_origins: list[str] = ["http://localhost:5173"]
     llm_api_key: str | None = None
-    ollama_base_url: str = "http://ollama:11434"
     ollama_model: str = "qwen2.5:3b"
+    # Instancias de Ollama entre las que se reparten las peticiones; cada una atiende una a la vez.
+    ollama_base_urls: list[str] = ["http://ollama-1:11434", "http://ollama-2:11434"]
+    # Instancia por defecto cuando el clasificador se usa solo (scripts y pruebas de integración).
+    ollama_base_url: str = "http://ollama-1:11434"
 
     database_url: str = "postgresql+psycopg://expedientes:expedientes@db:5432/expedientes"
 

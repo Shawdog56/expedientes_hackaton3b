@@ -36,6 +36,15 @@ docker compose up --build
 
 Las migraciones se aplican solas al arrancar el backend. El código se monta como volumen: los cambios recargan solos (uvicorn `--reload` y Vite HMR).
 
+### Modelo de lenguaje (Ollama)
+
+El modelo (`qwen2.5:3b`) corre en **dos contenedores**, `ollama-1` y `ollama-2`, para procesar dos documentos al mismo tiempo cuando se analiza un lote. El servicio `ollama-pull` descarga el modelo una sola vez en el volumen que ambos comparten (unos 2 GB la primera vez).
+
+- El backend reparte las peticiones entre las instancias (`OLLAMA_BASE_URLS`). Cada instancia atiende una petición a la vez; si las dos están ocupadas, la siguiente espera su turno. Esto vale para los documentos de un lote y para peticiones de varias personas a la vez.
+- Cada instancia mantiene el modelo cargado: cuenta con **unos 2 GB de RAM por instancia**. Sin GPU, las dos comparten los núcleos del equipo, así que el beneficio depende de cuántos tengas.
+- Los contenedores no publican puertos: la API de Ollama no tiene autenticación y solo la usa el backend.
+- Para más instancias, agrega un servicio `ollama-3: *ollama` en `docker-compose.yml` y su URL en `OLLAMA_BASE_URLS`.
+
 ## Dependencias
 
 ```powershell

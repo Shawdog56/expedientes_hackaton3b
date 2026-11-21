@@ -9,8 +9,26 @@ try:
 except ImportError:
     ClasificadorAgent = None
 from app.agents.ocr import OCRAgent
+from app.core.concurrencia import PoolDeRecursos
+from app.core.config import settings
 from app.services.validador_cruzado import validar_expediente_cruzado
 from app.services.validador_documento import validar_documento_individual
+
+_pool: PoolDeRecursos[Any] | None = None
+
+
+def pool_clasificadores() -> PoolDeRecursos[Any]:
+    """Un clasificador por instancia de Ollama, compartido por todas las peticiones del proceso.
+
+    Cada clasificador atiende una petición a la vez: con dos instancias se procesan dos
+    documentos al mismo tiempo, venga cada uno del lote o de peticiones distintas, y el resto espera.
+    """
+    global _pool
+    if _pool is None:
+        if ClasificadorAgent is None:
+            raise ImportError("ClasificadorAgent requiere langchain_core y langchain_ollama instalados.")
+        _pool = PoolDeRecursos([ClasificadorAgent(base_url=url) for url in settings.ollama_base_urls])
+    return _pool
 
 
 class ExpedienteService:
@@ -21,15 +39,17 @@ class ExpedienteService:
         clasificador: Optional[Any] = None,
         ocr_agent: Optional[Any] = None,
     ) -> None:
-        if clasificador is None:
-            if ClasificadorAgent is None:
-                raise ImportError(
-                    "ClasificadorAgent requiere langchain_core y langchain_ollama instalados."
-                )
-            self.clasificador = ClasificadorAgent()
-        else:
-            self.clasificador = clasificador
+        # Con un clasificador inyectado (pruebas) se usa ese; si no, el pool de instancias de Ollama.
+        if clasificador is None and ClasificadorAgent is None:
+            raise ImportError("ClasificadorAgent requiere langchain_core y langchain_ollama instalados.")
+        self.clasificador = clasificador
         self.ocr_agent = ocr_agent or OCRAgent()
+
+    async def _clasificar(self, texto: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        if self.clasificador is not None:
+            return await self.clasificador.run(texto, context=context)
+        async with pool_clasificadores().usar() as clasificador:
+            return await clasificador.run(texto, context=context)
 
     async def extraer_y_clasificar_documento(
         self,
@@ -40,12 +60,13 @@ class ExpedienteService:
 
         al ClasificadorAgent para su clasificación y extracción estructurada.
         """
-        # Paso 1: Recuperar texto y metadatos con el agente OCR
-        resultado_ocr = self.ocr_agent.extraer_texto(archivo, nombre=nombre)
+        # Paso 1: Recuperar texto y metadatos con el agente OCR. Corre en un hilo: es trabajo de CPU
+        # síncrono y, en el bucle principal, bloquearía las demás peticiones mientras dura.
+        resultado_ocr = await asyncio.to_thread(self.ocr_agent.extraer_texto, archivo, nombre=nombre)
         texto_extraido = resultado_ocr.get("texto", "").strip()
 
-        # Paso 2: Transportar el texto al agente clasificador
-        resultado_clasificacion = await self.clasificador.run(
+        # Paso 2: Transportar el texto al agente clasificador (una instancia de Ollama libre)
+        resultado_clasificacion = await self._clasificar(
             texto_extraido,
             context={
                 "ocr": resultado_ocr,
@@ -133,7 +154,7 @@ class ExpedienteService:
         3. Auditoría integral cruzada de expediente, 5 confianzas y veredicto final.
         """
         # Paso 1: Clasificación y extracción concurrente con LangChain
-        tareas = [self.clasificador.run(t) for t in textos]
+        tareas = [self._clasificar(t) for t in textos]
         resultados_clasificacion = await asyncio.gather(*tareas)
 
         # Paso 2: Validación individual y normalización determinista

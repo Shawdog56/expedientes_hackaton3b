@@ -153,10 +153,12 @@ class ClasificadorAgent(BaseAgent):
         "(predial, escritura, uso de suelo, alineamiento y número oficial) mediante LangChain."
     )
 
-    def __init__(self) -> None:
+    def __init__(self, base_url: str | None = None) -> None:
+        # `base_url` elige la instancia de Ollama; el servicio reparte las instancias entre peticiones.
+        self.base_url = base_url or settings.ollama_base_url
         self._llm = ChatOllama(
             model=settings.ollama_model,
-            base_url=settings.ollama_base_url,
+            base_url=self.base_url,
             temperature=0,
         )
 
