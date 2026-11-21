@@ -1,4 +1,4 @@
-import { ChevronRight, Eye, FileX } from 'lucide-react';
+import { ChevronRight, Eye, FileX, TriangleAlert } from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { useAnimaciones } from '../../../shared/motion';
@@ -8,12 +8,63 @@ import { EstadoIcono } from './EstadoIcono';
 import type { SeleccionHallazgo } from './FindingDrawer';
 import { ProgressRing, type EstadoAnillo } from './ProgressRing';
 
+/** Qué tan seguro está el modelo de haber identificado y leído bien el documento (análisis real). */
+export interface ConfianzaModelo {
+  valor: number;
+  /** Tipo con el que el modelo identificó el archivo, para avisar si no es el esperado. */
+  claseDetectada?: string;
+  coincide: boolean;
+}
+
 interface Props {
   documento: DocumentoAnalisis;
   enValidacion: boolean;
   interactivo: boolean;
   onAbrirPunto: (seleccion: SeleccionHallazgo) => void;
   onVerArchivos?: () => void;
+  confianzaModelo?: ConfianzaModelo;
+}
+
+const NIVELES_CONFIANZA = [
+  { desde: 80, texto: 'alta', barra: 'bg-ok' },
+  { desde: 60, texto: 'media', barra: 'bg-warn' },
+  { desde: 0, texto: 'baja', barra: 'bg-error' },
+];
+
+function IndicadorConfianzaModelo({ confianza }: { confianza: ConfianzaModelo }) {
+  const valor = Math.max(0, Math.min(100, Math.round(confianza.valor)));
+  const nivel = NIVELES_CONFIANZA.find((item) => valor >= item.desde) ?? NIVELES_CONFIANZA[2];
+
+  return (
+    <div
+      className="mt-2 space-y-1"
+      title="Qué tan seguro está el modelo de haber identificado y leído bien este documento"
+    >
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="text-muted">Confianza del modelo</span>
+        <span className="font-semibold text-ink">
+          {valor}% · {nivel.texto}
+        </span>
+      </div>
+      <div
+        role="meter"
+        aria-label="Confianza del modelo"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={valor}
+        aria-valuetext={`${valor}%, ${nivel.texto}`}
+        className="h-1.5 w-full overflow-hidden rounded-full bg-border"
+      >
+        <div className={`h-full rounded-full ${nivel.barra}`} style={{ width: `${valor}%` }} />
+      </div>
+      {!confianza.coincide && confianza.claseDetectada && (
+        <p className="flex items-start gap-1 text-xs font-medium" style={{ color: '#7A4B00' }}>
+          <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          El modelo lo identificó como {confianza.claseDetectada}
+        </p>
+      )}
+    </div>
+  );
 }
 
 const FLASH_HALLAZGO = { backgroundColor: ['rgba(217,119,6,0)', 'rgba(217,119,6,0.3)', 'rgba(217,119,6,0)'] };
@@ -109,7 +160,14 @@ function FilaRegla({ regla, interactivo, dataTour, onAbrir }: FilaReglaProps) {
   );
 }
 
-export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunto, onVerArchivos }: Props) {
+export function DocumentCard({
+  documento,
+  enValidacion,
+  interactivo,
+  onAbrirPunto,
+  onVerArchivos,
+  confianzaModelo,
+}: Props) {
   const Icono = REGLAS_VALIDACION.find((tipo) => tipo.id === documento.tipoId)?.Icono;
 
   if (documento.faltante) {
@@ -192,6 +250,7 @@ export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunt
                 {documento.archivos.length === 1 ? 'Ver archivo' : `Ver archivos (${documento.archivos.length})`}
               </button>
             )}
+            {confianzaModelo && <IndicadorConfianzaModelo confianza={confianzaModelo} />}
           </div>
         </div>
         <ProgressRing estado={estadoAnillo} resueltos={resueltos} total={total} etiqueta={etiquetaAnillo} />

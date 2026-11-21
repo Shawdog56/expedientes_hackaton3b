@@ -2,16 +2,50 @@ import { ArrowRight, CircleCheck, CircleX, Lock, RotateCcw } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react';
 import { useState } from 'react';
 import { CURVA_SALIDA, useAnimaciones } from '../../../shared/motion';
+import type { ResultadoAuditoria } from '../../../api/expedientes';
 import type { DocumentoAnalisis, ExpedienteAnalisis } from '../../../shared/useSimulatedAnalysis';
+import type { TipoDocumentalId } from '../../../shared/validationRules';
 import { useDecisionFinal } from '../useDecisionFinal';
 import { CompetitionTab } from './CompetitionTab';
 import { DecisionFinalPanel } from './DecisionFinalPanel';
 import { DictamenBanner } from './DictamenBanner';
-import { DocumentCard } from './DocumentCard';
+import { DocumentCard, type ConfianzaModelo } from './DocumentCard';
 import { DocumentosResumen } from './DocumentosResumen';
 import { ExpedienteSwitcher } from './ExpedienteSwitcher';
 import { FindingDrawer, type SeleccionHallazgo } from './FindingDrawer';
 import { StageBar } from './StageBar';
+
+/** Clase con la que el clasificador nombra cada tipo documental del panel. */
+const CLASE_ESPERADA: Record<TipoDocumentalId, string> = {
+  escrituras: 'escritura',
+  predial: 'predial',
+  alineamiento: 'alineamiento y número oficial',
+  uso_suelo: 'uso de suelo',
+};
+
+const NOMBRE_CLASE: Record<string, string> = {
+  escritura: 'Escrituras',
+  predial: 'Predial',
+  'alineamiento y número oficial': 'Alineamiento y Número Oficial',
+  'uso de suelo': 'Uso de Suelo',
+  ninguna: 'un documento no reconocido',
+};
+
+/** Confianza que dio el modelo al archivo de este tipo, si ya hay resultado real. */
+function confianzaDelModelo(
+  documento: DocumentoAnalisis,
+  resultado: ResultadoAuditoria | undefined,
+): ConfianzaModelo | undefined {
+  if (!resultado || documento.faltante) return undefined;
+  const ids = new Set(documento.archivos.map((archivo) => archivo.id));
+  const auditado = resultado.documentos.find((doc) => doc.documento_id && ids.has(doc.documento_id));
+  if (!auditado || typeof auditado.confianza !== 'number') return undefined;
+  return {
+    valor: auditado.confianza,
+    claseDetectada: auditado.clase ? (NOMBRE_CLASE[auditado.clase] ?? auditado.clase) : undefined,
+    coincide: auditado.clase === CLASE_ESPERADA[documento.tipoId],
+  };
+}
 
 interface Props {
   analisis: ExpedienteAnalisis[];
@@ -137,6 +171,7 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar,
               interactivo={finalizado}
               onAbrirPunto={setHallazgoAbierto}
               onVerArchivos={onVerArchivos ? () => onVerArchivos(documento) : undefined}
+              confianzaModelo={confianzaDelModelo(documento, actual.resultadoReal)}
             />
           </motion.div>
         ))}
