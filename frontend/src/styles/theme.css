@@ -1,10 +1,10 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-brand: #e30613; /* rojo 3B (provisional, verificar contra el logo) */
-  --color-brand-dark: #b0000e; /* hover / estados activos */
-  --color-brand-soft: #fdecee; /* fondos suaves, dropzone activa */
-  --color-accent: #ffc20e; /* acento amarillo (provisional) */
+  --color-brand: #eb1c24; /* rojo 3B, muestreado del logo oficial (src/assets/logo.jpg) */
+  --color-brand-dark: #bc161d; /* hover / estados activos */
+  --color-brand-soft: #fdeded; /* fondos suaves, dropzone activa */
+  --color-accent: #ffc20e; /* el logo es monocromo (rojo + blanco); se mantiene como acento provisional */
   --color-ink: #1f1f1f; /* texto principal */
   --color-muted: #6b6b6b; /* texto secundario */
   --color-surface: #ffffff; /* tarjetas */

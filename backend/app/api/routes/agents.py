@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
+from app.agents.contratos import AgenteExtractor
 from app.agents.registry import get_agent, list_agents
 from app.schemas.agents import AgentInfo, AgentRunRequest, AgentRunResponse
 
@@ -16,5 +17,10 @@ async def run_agent(name: str, body: AgentRunRequest) -> AgentRunResponse:
     agent = get_agent(name)
     if agent is None:
         raise HTTPException(status_code=404, detail=f"Agente '{name}' no existe")
+    if isinstance(agent, AgenteExtractor):
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{name}' es un extractor: se ejecuta sobre los documentos de un expediente",
+        )
     result = await agent.run(body.input, body.context)
     return AgentRunResponse(agent=name, result=result)

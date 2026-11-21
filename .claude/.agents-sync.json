@@ -1,0 +1,14 @@
+[
+  "agents/explorer.md",
+  "agents/implementer.md",
+  "agents/orchestrator.md",
+  "agents/reviewer.md",
+  "skills/claim-feature/SKILL.md",
+  "skills/commit/SKILL.md",
+  "skills/cross-review/SKILL.md",
+  "skills/dispatch-claude/SKILL.md",
+  "skills/dispatch-codex/SKILL.md",
+  "skills/documenter/SKILL.md",
+  "skills/orchestrate/SKILL.md",
+  "skills/worktree/SKILL.md"
+]

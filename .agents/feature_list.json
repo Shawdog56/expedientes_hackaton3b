@@ -1,0 +1,236 @@
+{
+  "project": "expedientes_hackaton3b",
+  "description": "Backlog compartido por Claude y Codex. Solo se modifica con .agents/scripts/claim.ps1.",
+  "rules": {
+    "one_feature_per_agent": true,
+    "require_verification_to_close": true,
+    "require_cross_review": true,
+    "exclusive_file_ownership": true,
+    "valid_status": [
+      "pending",
+      "in_progress",
+      "review",
+      "done",
+      "blocked"
+    ],
+    "valid_engine": [
+      "any",
+      "claude",
+      "codex"
+    ]
+  },
+  "verification_profile": {
+    "backend": [
+      "docker compose -p <proyecto> run --rm --no-deps backend pytest -q"
+    ],
+    "frontend": [
+      "docker compose -p <proyecto> run --rm --no-deps frontend npm run lint",
+      "docker compose -p <proyecto> run --rm --no-deps frontend npm run build"
+    ],
+    "repo-root": [
+      "revision manual del diff",
+      "docker compose config -q si cambia docker-compose.yml"
+    ]
+  },
+  "features": [
+    {
+      "id": "F-000",
+      "name": "agents_orchestration_scaffold",
+      "module": "repo-root",
+      "title": "Estructura .agents para orquestar Claude y Codex en paralelo",
+      "status": "done",
+      "engine": "claude",
+      "owner": "claude",
+      "branch": null,
+      "worktree": null,
+      "depends_on": [],
+      "files": [
+        ".agents/",
+        ".claude/",
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "deliverables": [
+        "Roles, reglas, skills y scripts en .agents/",
+        "Espejo .claude/ generado con sync-agents.ps1"
+      ],
+      "verification": [
+        "claim.ps1 probado sobre una copia del tablero",
+        "sync-agents.ps1 -Check sin diferencias"
+      ],
+      "notes": []
+    },
+    {
+      "id": "F-001",
+      "name": "agente_escrituras",
+      "module": "backend",
+      "title": "Agente especialista de Escrituras",
+      "status": "pending",
+      "engine": "any",
+      "owner": null,
+      "branch": null,
+      "worktree": null,
+      "depends_on": [],
+      "files": [
+        "backend/app/agents/escrituras.py",
+        "backend/tests/test_agente_escrituras.py"
+      ],
+      "deliverables": [
+        "Clase que hereda de AgenteExtractor (agents/contratos.py) con tipo_documental con name = agente_escrituras (ver AGENTE_POR_TIPO en services/clasificacion.py)",
+        "Extracción de las características acordadas por el equipo para escrituras",
+        "Pruebas unitarias sin red ni Postgres"
+      ],
+      "verification": [
+        "pytest backend"
+      ],
+      "notes": [
+        "Contrato en backend/app/agents/contratos.py; no editar registry.py (autodescubrimiento). Confirmar los campos a extraer antes de reclamarla."
+      ]
+    },
+    {
+      "id": "F-002",
+      "name": "agente_predial",
+      "module": "backend",
+      "title": "Agente especialista de Predial",
+      "status": "pending",
+      "engine": "any",
+      "owner": null,
+      "branch": null,
+      "worktree": null,
+      "depends_on": [],
+      "files": [
+        "backend/app/agents/predial.py",
+        "backend/tests/test_agente_predial.py"
+      ],
+      "deliverables": [
+        "Clase que hereda de AgenteExtractor (agents/contratos.py) con tipo_documental con name = agente_predial",
+        "Extracción de las características acordadas por el equipo para predial",
+        "Pruebas unitarias sin red ni Postgres"
+      ],
+      "verification": [
+        "pytest backend"
+      ],
+      "notes": [
+        "Contrato en backend/app/agents/contratos.py; no editar registry.py (autodescubrimiento). Confirmar los campos a extraer antes de reclamarla."
+      ]
+    },
+    {
+      "id": "F-003",
+      "name": "agente_alineamiento",
+      "module": "backend",
+      "title": "Agente especialista de Alineamiento y Número Oficial",
+      "status": "pending",
+      "engine": "any",
+      "owner": null,
+      "branch": null,
+      "worktree": null,
+      "depends_on": [],
+      "files": [
+        "backend/app/agents/alineamiento.py",
+        "backend/tests/test_agente_alineamiento.py"
+      ],
+      "deliverables": [
+        "Clase que hereda de AgenteExtractor (agents/contratos.py) con tipo_documental con name = agente_alineamiento",
+        "Extracción de las características acordadas por el equipo para alineamiento y número oficial",
+        "Pruebas unitarias sin red ni Postgres"
+      ],
+      "verification": [
+        "pytest backend"
+      ],
+      "notes": [
+        "Contrato en backend/app/agents/contratos.py; no editar registry.py (autodescubrimiento). Confirmar los campos a extraer antes de reclamarla."
+      ]
+    },
+    {
+      "id": "F-004",
+      "name": "agente_uso_suelo",
+      "module": "backend",
+      "title": "Agente especialista de Uso de Suelo",
+      "status": "pending",
+      "engine": "any",
+      "owner": null,
+      "branch": null,
+      "worktree": null,
+      "depends_on": [],
+      "files": [
+        "backend/app/agents/uso_suelo.py",
+        "backend/tests/test_agente_uso_suelo.py"
+      ],
+      "deliverables": [
+        "Clase que hereda de AgenteExtractor (agents/contratos.py) con tipo_documental con name = agente_uso_suelo",
+        "Extracción de las características acordadas por el equipo para uso de suelo",
+        "Pruebas unitarias sin red ni Postgres"
+      ],
+      "verification": [
+        "pytest backend"
+      ],
+      "notes": [
+        "Contrato en backend/app/agents/contratos.py; no editar registry.py (autodescubrimiento). Confirmar los campos a extraer antes de reclamarla."
+      ]
+    },
+    {
+      "id": "F-005",
+      "name": "servicio_extraccion",
+      "module": "backend",
+      "title": "Servicio que ejecuta los agentes extractores sobre un expediente",
+      "status": "pending",
+      "engine": "any",
+      "owner": null,
+      "branch": null,
+      "worktree": null,
+      "depends_on": [
+        "F-001",
+        "F-002",
+        "F-003",
+        "F-004"
+      ],
+      "files": [
+        "backend/app/services/extraccion.py",
+        "backend/app/api/routes/extracciones.py",
+        "backend/app/schemas/extracciones.py",
+        "backend/tests/test_extraccion.py"
+      ],
+      "deliverables": [
+        "Servicio que toma documentos_para_agentes, arma SolicitudExtraccion, llama a agente_para_tipo(...).extraer y persiste Extraccion con su estado",
+        "Endpoint para lanzar y consultar la extracción de un expediente",
+        "Contrato de respuesta documentado en schemas/extracciones.py"
+      ],
+      "verification": [
+        "pytest backend"
+      ],
+      "notes": [
+        "El registro ya autodescubre agentes: esta feature no toca registry.py ni los agentes. Pruebas con un agente falso."
+      ]
+    },
+    {
+      "id": "F-006",
+      "name": "frontend_resultados_agentes",
+      "module": "frontend",
+      "title": "Mostrar en la UI los resultados de los agentes por documento",
+      "status": "pending",
+      "engine": "any",
+      "owner": null,
+      "branch": null,
+      "worktree": null,
+      "depends_on": [
+        "F-005"
+      ],
+      "files": [
+        "frontend/src/types/expediente.ts",
+        "frontend/src/api/expedientes.ts",
+        "frontend/src/components/ExpedienteCard.tsx"
+      ],
+      "deliverables": [
+        "Tipos TypeScript alineados con el contrato de F-005",
+        "Resultados visibles por documento en la tarjeta del expediente"
+      ],
+      "verification": [
+        "lint frontend",
+        "build frontend"
+      ],
+      "notes": [
+        "Semilla propuesta."
+      ]
+    }
+  ]
+}

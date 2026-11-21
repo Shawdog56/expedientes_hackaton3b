@@ -1,0 +1,3 @@
+# Estado efímero de la orquestación (candados y reportes de ejecución)
+locks/
+runs/
