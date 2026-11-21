@@ -1,5 +1,5 @@
 import type { ArchivoExpediente, Expediente } from '../types/expediente';
-import { esArchivoDeSistema, esArchivoPermitido } from './tiposArchivo';
+import { FORMATOS_PERMITIDOS, esArchivoDeSistema, esArchivoPermitido } from './tiposArchivo';
 
 /**
  * Crea un expediente recién cargado, pendiente de enviarse al backend.
@@ -15,7 +15,7 @@ export function crearExpediente(
     .filter((archivo) => !esArchivoPermitido(archivo.nombre))
     .map((archivo) => ({
       ruta: archivo.ruta,
-      motivo: 'Tipo de archivo no permitido (solo PDF o ZIP)',
+      motivo: `Tipo de archivo no permitido (solo ${FORMATOS_PERMITIDOS})`,
     }));
 
   return {
@@ -32,7 +32,7 @@ export function crearExpediente(
   };
 }
 
-/** Un expediente está listo para analizarse cuando el backend ya lo validó y contiene PDFs. */
+/** Un expediente está listo para analizarse cuando el backend ya lo validó y contiene documentos. */
 export function esExpedienteListo(expediente: Expediente): boolean {
   return expediente.estado === 'validado' && expediente.documentos.length > 0;
 }

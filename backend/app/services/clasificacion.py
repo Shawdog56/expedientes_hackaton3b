@@ -30,7 +30,7 @@ PATRONES: dict[TipoDocumental, re.Pattern[str]] = {
 
 def normalizar(texto: str) -> str:
     """'03. Número Oficial_Sor-Juana.pdf' -> '03 numero oficial sor juana'."""
-    texto = re.sub(r"\.pdf$", "", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"\.(pdf|jpe?g|png)$", "", texto, flags=re.IGNORECASE)
     texto = unicodedata.normalize("NFKD", texto)
     texto = "".join(c for c in texto if not unicodedata.combining(c)).lower()
     texto = re.sub(r"[^a-z0-9]+", " ", texto)

@@ -1,7 +1,7 @@
 """Contrato de los agentes especialistas de extracción.
 
 Un agente especialista no conoce la base de datos, la API ni a otros agentes: recibe
-una `SolicitudExtraccion` (qué PDF leer y de qué tipo es) y devuelve un
+una `SolicitudExtraccion` (qué archivo leer, en qué formato y de qué tipo es) y devuelve un
 `ResultadoExtraccion` (qué características encontró). Quien orquesta se encarga de
 leer el expediente, persistir el resultado y decidir qué hacer con los errores.
 
@@ -14,13 +14,14 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from app.agents.base import BaseAgent
-from app.domain.documentos import TipoDocumental
+from app.domain.documentos import FormatoArchivo, TipoDocumental
 
 
 @dataclass(frozen=True)
 class SolicitudExtraccion:
     documento_id: str
-    ruta_pdf: Path
+    ruta_archivo: Path
+    formato: FormatoArchivo  # PDF: leer texto y páginas; imagen (JPEG/PNG): visión u OCR
     nombre: str
     tipo: TipoDocumental
     paginas: int
@@ -41,7 +42,7 @@ class AgenteExtractor(BaseAgent):
 
     @abstractmethod
     async def extraer(self, solicitud: SolicitudExtraccion) -> ResultadoExtraccion:
-        """Lee el PDF de la solicitud y devuelve sus características. Los fallos se lanzan como excepción."""
+        """Lee el archivo de la solicitud y devuelve sus características. Los fallos se lanzan como excepción."""
 
     async def run(self, input: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         # Un extractor lee archivos del almacenamiento: no se expone por el endpoint genérico

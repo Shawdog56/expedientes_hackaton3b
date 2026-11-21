@@ -10,6 +10,14 @@ class TipoDocumental(StrEnum):
     USO_SUELO = "uso_suelo"
 
 
+class FormatoArchivo(StrEnum):
+    """Formato real del documento (según su contenido, no su extensión)."""
+
+    PDF = "pdf"
+    JPEG = "jpeg"
+    PNG = "png"
+
+
 class EstadoClasificacion(StrEnum):
     CLASIFICADO = "clasificado"
     SIN_CLASIFICAR = "sin_clasificar"

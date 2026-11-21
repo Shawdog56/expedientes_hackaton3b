@@ -41,7 +41,7 @@ export function useExpedientes() {
       (archivo) => archivo.file && esArchivoPermitido(archivo.nombre),
     );
     if (!hayArchivosParaSubir) {
-      actualizarExpediente(expediente.id, { estado: 'error', error: 'No contiene archivos PDF ni .zip' });
+      actualizarExpediente(expediente.id, { estado: 'error', error: 'No contiene documentos PDF, JPG, PNG ni archivos .zip' });
       return;
     }
 

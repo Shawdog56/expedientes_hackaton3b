@@ -3,6 +3,7 @@ import uuid
 import zipfile
 
 import pytest
+from PIL import Image
 from pypdf import PdfWriter
 
 from app.core.config import settings
@@ -16,6 +17,12 @@ def pdf_bytes(paginas: int = 1, password: str | None = None) -> bytes:
         w.encrypt(password)
     buf = io.BytesIO()
     w.write(buf)
+    return buf.getvalue()
+
+
+def imagen_bytes(formato: str = "PNG", tamano: tuple[int, int] = (20, 20)) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", tamano, (200, 30, 30)).save(buf, formato)
     return buf.getvalue()
 
 
@@ -52,7 +59,7 @@ def test_carpeta_con_pdfs_validos_e_invalidos(subir, client, storage_temporal):
             ("falso.pdf", b"esto no es un pdf"),
             ("roto.pdf", b"%PDF-1.7\n basura sin estructura"),
             ("protegido.pdf", pdf_bytes(1, password="secreto")),
-            ("foto.jpg", b"\xff\xd8\xff"),
+            ("foto.gif", imagen_bytes("GIF")),
         ],
         rutas=[
             "Exp1/01 Escritura.pdf",
@@ -60,7 +67,7 @@ def test_carpeta_con_pdfs_validos_e_invalidos(subir, client, storage_temporal):
             "Exp1/falso.pdf",
             "Exp1/roto.pdf",
             "Exp1/protegido.pdf",
-            "Exp1/foto.jpg",
+            "Exp1/foto.gif",
         ],
     )
     assert r.status_code == 201, r.text
@@ -76,7 +83,7 @@ def test_carpeta_con_pdfs_validos_e_invalidos(subir, client, storage_temporal):
     assert "firma %PDF" in motivos["Exp1/falso.pdf"]
     assert "dañado" in motivos["Exp1/roto.pdf"]
     assert "contraseña" in motivos["Exp1/protegido.pdf"]
-    assert "no permitido" in motivos["Exp1/foto.jpg"]
+    assert "no permitido" in motivos["Exp1/foto.gif"]
 
     docs = dir_documentos(storage_temporal, body["id"])
     assert sorted(p.name for p in docs.rglob("*") if p.is_file()) == [
@@ -249,3 +256,84 @@ def test_tipos_documentales(client):
         "alineamiento_numero_oficial",
         "uso_suelo",
     ]
+
+
+# ------------------------------------------------------------------ imágenes
+
+
+def test_imagenes_jpg_png_se_aceptan_y_se_clasifican(subir):
+    r = subir(
+        [
+            ("Predial 2025.jpeg", imagen_bytes("JPEG")),
+            ("escritura.PNG", imagen_bytes("PNG")),
+            ("uso de suelo.jpg", imagen_bytes("JPEG", (40, 30))),
+            ("alineamiento.pdf", pdf_bytes(2)),
+        ]
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["rechazados"] == []
+    docs = {d["ruta"]: d for d in body["documentos"]}
+    assert {k: (v["formato"], v["paginas"]) for k, v in docs.items()} == {
+        "Predial 2025.jpeg": ("jpeg", 1),
+        "escritura.PNG": ("png", 1),
+        "uso de suelo.jpg": ("jpeg", 1),
+        "alineamiento.pdf": ("pdf", 2),
+    }
+    assert docs["Predial 2025.jpeg"]["tipo_documental"] == "predial"
+    assert docs["escritura.PNG"]["tipo_documental"] == "escrituras"
+    assert body["completo"] is True
+
+
+def test_imagenes_invalidas_se_rechazan(subir):
+    r = subir(
+        [
+            ("ok.png", imagen_bytes("PNG")),
+            ("falsa.png", b"esto no es una imagen"),
+            ("gif_disfrazado.png", imagen_bytes("GIF")),
+            ("rota.jpg", b"\xff\xd8\xff" + b"basura" * 50),
+            ("truncada.png", imagen_bytes("PNG")[:40]),
+        ]
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert [d["ruta"] for d in body["documentos"]] == ["ok.png"]
+    motivos = {x["ruta"]: x["motivo"] for x in body["rechazados"]}
+    assert "firma" in motivos["falsa.png"]
+    assert "firma" in motivos["gif_disfrazado.png"]
+    assert "dañada" in motivos["rota.jpg"]
+    assert "dañada" in motivos["truncada.png"]
+
+
+def test_imagen_excede_tamano_y_pixeles(subir, monkeypatch):
+    monkeypatch.setattr(settings, "max_imagen_pixeles", 100)
+    r = subir([("grande.png", imagen_bytes("PNG", (50, 50))), ("pdf.pdf", pdf_bytes())])
+    assert "megapíxeles" in r.json()["rechazados"][0]["motivo"]
+
+    monkeypatch.setattr(settings, "max_imagen_pixeles", 80_000_000)
+    monkeypatch.setattr(settings, "max_imagen_mb", 0)
+    r = subir([("pesada.jpg", imagen_bytes("JPEG")), ("pdf.pdf", pdf_bytes())])
+    assert "tamaño máximo" in r.json()["rechazados"][0]["motivo"]
+
+
+def test_zip_con_imagenes(subir):
+    contenido = zip_bytes(
+        {
+            "Exp/predial.jpg": imagen_bytes("JPEG"),
+            "Exp/escritura.png": imagen_bytes("PNG"),
+            "Exp/uso suelo.pdf": pdf_bytes(),
+            "Exp/foto.gif": imagen_bytes("GIF"),
+            "Exp/falsa.jpg": b"no es imagen",
+        }
+    )
+    r = subir([("exp.zip", contenido)])
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert {d["ruta"]: d["formato"] for d in body["documentos"]} == {
+        "Exp/predial.jpg": "jpeg",
+        "Exp/escritura.png": "png",
+        "Exp/uso suelo.pdf": "pdf",
+    }
+    motivos = {x["ruta"]: x["motivo"] for x in body["rechazados"]}
+    assert "no permitido" in motivos["Exp/foto.gif"]
+    assert "firma" in motivos["Exp/falsa.jpg"]

@@ -9,6 +9,7 @@ import {
 } from '../../shared/types/expediente';
 import { formatBytes } from '../../shared/utils/formatBytes';
 import { plural } from '../../shared/utils/plural';
+import { esDocumento } from '../../shared/utils/tiposArchivo';
 
 interface Props {
   expediente: Expediente;
@@ -40,7 +41,7 @@ export function ExpedienteTableRow({ expediente, onQuitar, onReclasificar }: Pro
   const esZip = expediente.origen === 'zip';
   const validado = expediente.estado === 'validado';
   const Icono = ICONO_ORIGEN[expediente.origen];
-  const pdfsEnviados = expediente.archivos.filter((archivo) => archivo.nombre.toLowerCase().endsWith('.pdf'));
+  const documentosEnviados = expediente.archivos.filter((archivo) => esDocumento(archivo.nombre));
 
   return (
     <>
@@ -125,14 +126,14 @@ export function ExpedienteTableRow({ expediente, onQuitar, onReclasificar }: Pro
               </>
             ) : (
               <div className="flex flex-wrap gap-1.5">
-                {pdfsEnviados.length === 0 ? (
+                {documentosEnviados.length === 0 ? (
                   <span className="text-xs text-muted">
                     {esZip
                       ? 'El contenido del .zip se revisa al validarlo.'
-                      : 'No se encontraron PDF en este expediente.'}
+                      : 'No se encontraron documentos en este expediente.'}
                   </span>
                 ) : (
-                  pdfsEnviados.map((archivo) => (
+                  documentosEnviados.map((archivo) => (
                     <span
                       key={archivo.ruta}
                       className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-ink"

@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     # Límites de validación
     max_pdf_mb: int = 50
+    max_imagen_mb: int = 25
+    # Por debajo del umbral de aviso de Pillow (~89 MP) para rechazar antes de que avise.
+    max_imagen_pixeles: int = 80_000_000
     max_zip_mb: int = 300
     max_zip_descomprimido_mb: int = 1024
     max_archivos_zip: int = 1000
@@ -28,6 +31,10 @@ class Settings(BaseSettings):
     @property
     def max_pdf_bytes(self) -> int:
         return self.max_pdf_mb * MB
+
+    @property
+    def max_imagen_bytes(self) -> int:
+        return self.max_imagen_mb * MB
 
     @property
     def max_zip_bytes(self) -> int:

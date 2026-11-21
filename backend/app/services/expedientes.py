@@ -1,6 +1,6 @@
 """Carga de expedientes: validación de archivos, clasificación por tipo documental y persistencia.
 
-Los PDFs viven en STORAGE_DIR/<expediente_id>/documentos/...; los metadatos en PostgreSQL.
+Los documentos (PDF, JPG y PNG) viven en STORAGE_DIR/<expediente_id>/documentos/...; los metadatos en PostgreSQL.
 """
 
 import hashlib
@@ -23,7 +23,7 @@ from app.services.validacion import (
     ResultadoArchivo,
     es_ignorable,
     es_zip,
-    guardar_pdf,
+    guardar_documento,
     leer_cabecera,
     procesar_zip,
     sanear_ruta,
@@ -41,7 +41,7 @@ class ArchivoSubido:
 
 class SinDocumentosValidos(Exception):
     def __init__(self, rechazados: list[dict[str, str]]):
-        super().__init__("No se encontró ningún PDF válido")
+        super().__init__("No se encontró ningún documento válido")
         self.rechazados = rechazados
 
 
@@ -54,7 +54,7 @@ def _sha256(path: Path) -> str:
 
 
 def _validar_archivos(archivos: list[ArchivoSubido], base: Path) -> tuple[list[ResultadoArchivo], bool]:
-    """Guarda en disco los PDFs válidos (descomprimiendo ZIPs). Devuelve resultados y si hubo ZIP."""
+    """Guarda en disco los documentos válidos (descomprimiendo ZIPs). Devuelve resultados y si hubo ZIP."""
     documentos_dir = base / DIR_DOCUMENTOS
     documentos_dir.mkdir(parents=True, exist_ok=True)
     resultados: list[ResultadoArchivo] = []
@@ -73,7 +73,7 @@ def _validar_archivos(archivos: list[ArchivoSubido], base: Path) -> tuple[list[R
             hay_zip = True
             resultados += procesar_zip(archivo.contenido, ruta, documentos_dir, base / f".tmp-{i}")
         else:
-            resultados.append(guardar_pdf(archivo.contenido, ruta, documentos_dir))
+            resultados.append(guardar_documento(archivo.contenido, ruta, documentos_dir))
     return resultados, hay_zip
 
 
@@ -86,7 +86,7 @@ def _nombre_por_defecto(archivos: list[ArchivoSubido]) -> str:
 
 
 def crear_expediente(db: Session, nombre: str | None, archivos: list[ArchivoSubido]) -> Expediente:
-    """Valida, clasifica y registra el expediente. Lanza SinDocumentosValidos si no queda ningún PDF."""
+    """Valida, clasifica y registra el expediente. Lanza SinDocumentosValidos si no queda ningún documento."""
     expediente_id = uuid.uuid4()
     base = settings.storage_dir / expediente_id.hex
     documentos_dir = base / DIR_DOCUMENTOS
@@ -120,6 +120,7 @@ def crear_expediente(db: Session, nombre: str | None, archivos: list[ArchivoSubi
                 ruta_almacenamiento=str(r.destino),
                 tamano=r.tamano,
                 paginas=r.paginas,
+                formato=r.formato,
                 sha256=_sha256(r.destino),
                 tipo_documental=clasificacion.tipo,
                 estado_clasificacion=clasificacion.estado,

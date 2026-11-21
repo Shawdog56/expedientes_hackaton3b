@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { listarArchivosDeEntry, obtenerEntryDesdeItem } from '../../shared/utils/readDroppedEntries';
 import type { ArchivoExpediente, Expediente } from '../../shared/types/expediente';
 import { crearExpediente } from '../../shared/utils/expediente';
+import { FORMATOS_PERMITIDOS, esDocumento, esZip } from '../../shared/utils/tiposArchivo';
 
 function siguienteNombreSueltos(actuales: Expediente[]): string {
   const cantidad = actuales.filter((expediente) => expediente.origen === 'archivos').length;
@@ -9,7 +10,7 @@ function siguienteNombreSueltos(actuales: Expediente[]): string {
 }
 
 /**
- * Lógica de carga propia de la propuesta B: carpeta, .zip o PDF sueltos
+ * Lógica de carga propia de la propuesta B: carpeta, .zip o documentos sueltos (PDF, JPG, PNG)
  * (agrupados en un único expediente "Archivos sueltos N" por lote).
  */
 export function useExpedienteUpload(
@@ -64,10 +65,9 @@ export function useExpedienteUpload(
       const [archivo] = await listarArchivosDeEntry(entry);
       if (!archivo) continue;
 
-      const nombreMinusculas = archivo.nombre.toLowerCase();
-      if (nombreMinusculas.endsWith('.zip')) {
+      if (esZip(archivo.nombre)) {
         nuevosExpedientes.push(crearExpediente(archivo.nombre, 'zip', [archivo]));
-      } else if (nombreMinusculas.endsWith('.pdf')) {
+      } else if (esDocumento(archivo.nombre)) {
         sueltos.push(archivo);
       } else {
         nombresInvalidos.push(archivo.nombre);
@@ -81,7 +81,7 @@ export function useExpedienteUpload(
     }
 
     if (nombresInvalidos.length > 0) {
-      setError(`Solo se aceptan carpetas, archivos .zip o .pdf. Se ignoró: ${nombresInvalidos.join(', ')}.`);
+      setError(`Solo se aceptan carpetas o archivos ${FORMATOS_PERMITIDOS}. Se ignoró: ${nombresInvalidos.join(', ')}.`);
     }
 
     if (nuevosExpedientes.length > 0) {
@@ -99,14 +99,13 @@ export function useExpedienteUpload(
     const nombresInvalidos: string[] = [];
 
     for (const archivo of Array.from(archivos)) {
-      const nombreMinusculas = archivo.name.toLowerCase();
-      if (nombreMinusculas.endsWith('.zip')) {
+      if (esZip(archivo.name)) {
         nuevosExpedientes.push(
           crearExpediente(archivo.name, 'zip', [
             { nombre: archivo.name, ruta: archivo.name, tamano: archivo.size, file: archivo },
           ]),
         );
-      } else if (nombreMinusculas.endsWith('.pdf')) {
+      } else if (esDocumento(archivo.name)) {
         sueltos.push({ nombre: archivo.name, ruta: archivo.name, tamano: archivo.size, file: archivo });
       } else {
         nombresInvalidos.push(archivo.name);
@@ -120,7 +119,7 @@ export function useExpedienteUpload(
     }
 
     if (nombresInvalidos.length > 0) {
-      setError(`Solo se aceptan archivos .pdf o .zip. Se ignoró: ${nombresInvalidos.join(', ')}.`);
+      setError(`Solo se aceptan archivos ${FORMATOS_PERMITIDOS}. Se ignoró: ${nombresInvalidos.join(', ')}.`);
     }
 
     if (nuevosExpedientes.length > 0) {

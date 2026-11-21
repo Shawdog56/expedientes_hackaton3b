@@ -11,7 +11,7 @@ backend/    API FastAPI para los agentes (Python 3.12)
     core/config.py    settings (.env)
     api/routes/       endpoints (/api/health, /api/agents, /api/expedientes, /api/documentos)
     db/               SQLAlchemy: sesión y modelos
-    services/         validacion.py (PDF/ZIP), clasificacion.py (tipo documental), expedientes.py
+    services/         validacion.py (PDF, JPG, PNG y ZIP), clasificacion.py (tipo documental), expedientes.py
     domain/           enums y constantes compartidas (no importa nada de app)
     agents/           agentes (base.py, contratos.py, registry.py autodescubierto, echo.py de ejemplo)
     schemas/          modelos Pydantic
@@ -58,16 +58,17 @@ carga + validación ─► clasificación ─► agentes especialistas ─► or
 
 ### 1. Carga y validación
 
-`POST /api/expedientes` (multipart): campos `archivos` (PDFs o un `.zip`), `rutas` (ruta relativa de cada archivo, mismo orden) y `nombre`.
+`POST /api/expedientes` (multipart): campos `archivos` (PDF, JPG, PNG o un `.zip`), `rutas` (ruta relativa de cada archivo, mismo orden) y `nombre`.
 
 - **PDF**: se valida la firma `%PDF`, que pypdf lo pueda abrir, que no tenga contraseña y que tenga páginas.
-- **ZIP**: se detecta por extensión o firma y se descomprime solo con los PDF válidos. Se protege contra zip-slip (`../`), zip bombs (tamaño total, número de archivos y ratio de compresión) y se ignoran `__MACOSX`/`.DS_Store`. Los ZIP anidados, los miembros cifrados y los no-PDF se rechazan.
-- Respuesta `201` con `documentos` y `rechazados` (con `motivo`); `422` si no hubo ningún PDF válido.
+- **Imagen (`.jpg`, `.jpeg`, `.png`)**: se valida la firma real del archivo (no solo la extensión), que Pillow la abra sin errores y que no supere `MAX_IMAGEN_MB` (25) ni `MAX_IMAGEN_PIXELES` (80 millones). Cuenta como 1 página y su `formato` queda en la respuesta (`pdf`, `jpeg` o `png`) para que los agentes sepan si leer texto o usar visión.
+- **ZIP**: se detecta por extensión o firma y se descomprime solo con los documentos válidos (PDF, JPG y PNG). Se protege contra zip-slip (`../`), zip bombs (tamaño total, número de archivos y ratio de compresión) y se ignoran `__MACOSX`/`.DS_Store`. Los ZIP anidados, los miembros cifrados y los no-PDF se rechazan.
+- Respuesta `201` con `documentos` y `rechazados` (con `motivo`); `422` si no hubo ningún documento válido.
 - Límites configurables en `backend/.env` (ver `.env.example`).
 
 ### 2. Clasificación por nombre de archivo
 
-Cada PDF se clasifica en uno de los 4 tipos documentales según su nombre, sin importar mayúsculas, acentos, prefijos numéricos ni texto extra ([clasificacion.py](backend/app/services/clasificacion.py)):
+Cada documento se clasifica en uno de los 4 tipos documentales según su nombre, sin importar mayúsculas, acentos, prefijos numéricos ni texto extra ([clasificacion.py](backend/app/services/clasificacion.py)):
 
 | Tipo | El nombre contiene | Agente |
 |---|---|---|

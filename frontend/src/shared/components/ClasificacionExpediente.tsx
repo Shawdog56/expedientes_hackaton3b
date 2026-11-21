@@ -37,7 +37,7 @@ export function Resumen({ expediente }: { expediente: Expediente }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-ok">
       <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-      {plural(expediente.documentos.length, 'PDF válido', 'PDFs válidos')} · {plural(paginas, 'página')}
+      {plural(expediente.documentos.length, 'documento válido', 'documentos válidos')} · {plural(paginas, 'página')}
     </span>
   );
 }
@@ -91,7 +91,8 @@ export function FilaDocumento({
           <span className="truncate" title={doc.ruta}>{doc.ruta}</span>
         </span>
         <span className="shrink-0 text-xs text-muted">
-          {plural(doc.paginas, 'pág.', 'págs.')} · {formatBytes(doc.tamano)}
+          {doc.formato === 'pdf' ? plural(doc.paginas, 'pág.', 'págs.') : `Imagen ${doc.formato.toUpperCase()}`} ·{' '}
+          {formatBytes(doc.tamano)}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-2 pl-5">

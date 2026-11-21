@@ -1,4 +1,4 @@
-"""Validación de PDFs y extracción segura de ZIPs."""
+"""Validación de documentos (PDF, JPG y PNG) y extracción segura de ZIPs."""
 
 import logging
 import shutil
@@ -8,13 +8,21 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO
 
+from PIL import Image
 from pypdf import PdfReader
 
 from app.core.config import settings
+from app.domain.documentos import FormatoArchivo
 
 logging.getLogger("pypdf").setLevel(logging.ERROR)
 
 FIRMA_PDF = b"%PDF-"
+FIRMAS_IMAGEN = (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n")
+FORMATO_PIL = {"JPEG": FormatoArchivo.JPEG, "PNG": FormatoArchivo.PNG}
+EXTENSIONES_PDF = (".pdf",)
+EXTENSIONES_IMAGEN = (".jpg", ".jpeg", ".png")
+EXTENSIONES_DOCUMENTO = EXTENSIONES_PDF + EXTENSIONES_IMAGEN
+MOTIVO_TIPO_NO_PERMITIDO = "Tipo de archivo no permitido (solo PDF, JPG, PNG o ZIP)"
 FIRMAS_ZIP = (b"PK\x03\x04", b"PK\x05\x06")
 ARCHIVOS_IGNORADOS = {".ds_store", "thumbs.db", "desktop.ini"}
 CHUNK = 1024 * 1024
@@ -33,6 +41,7 @@ class ResultadoArchivo:
     destino: Path | None = None
     tamano: int = 0
     paginas: int = 0
+    formato: FormatoArchivo = FormatoArchivo.PDF
     motivo: str | None = None
 
     @property
@@ -139,21 +148,66 @@ def validar_pdf(path: Path) -> int:
     return paginas
 
 
-def guardar_pdf(origen: BinaryIO, ruta: str, base: Path) -> ResultadoArchivo:
-    """Guarda un PDF subido directamente y lo valida."""
-    if not ruta.lower().endswith(".pdf"):
-        return ResultadoArchivo(ruta, motivo="Tipo de archivo no permitido (solo PDF o ZIP)")
+# ------------------------------------------------------------------ imagen
+
+
+def validar_imagen(path: Path) -> FormatoArchivo:
+    """Valida que el archivo sea un JPG o PNG íntegro y de tamaño razonable."""
+    with open(path, "rb") as f:
+        cabecera = f.read(8)
+    if not cabecera.startswith(FIRMAS_IMAGEN):
+        raise ArchivoRechazado("No es una imagen JPG o PNG válida (firma ausente)")
+
+    try:
+        with Image.open(path) as imagen:
+            formato = FORMATO_PIL.get(imagen.format or "")
+            if formato is None:
+                raise ArchivoRechazado("Formato de imagen no permitido (solo JPG o PNG)")
+            ancho, alto = imagen.size
+            if ancho * alto > settings.max_imagen_pixeles:
+                raise ArchivoRechazado(
+                    f"La imagen excede el máximo de {settings.max_imagen_pixeles // 1_000_000} megapíxeles"
+                )
+            imagen.verify()
+    except ArchivoRechazado:
+        raise
+    except Image.DecompressionBombError as e:
+        raise ArchivoRechazado("Imagen con demasiados píxeles") from e
+    except Exception as e:  # Pillow lanza errores muy variados en archivos corruptos
+        raise ArchivoRechazado(f"Imagen dañada o ilegible ({type(e).__name__})") from e
+    return formato
+
+
+def validar_documento(path: Path, ruta: str) -> tuple[FormatoArchivo, int]:
+    """Valida según la extensión declarada. Devuelve (formato real, número de páginas)."""
+    if ruta.lower().endswith(EXTENSIONES_IMAGEN):
+        return validar_imagen(path), 1
+    return FormatoArchivo.PDF, validar_pdf(path)
+
+
+def limite_documento(ruta: str) -> tuple[int, str]:
+    """Tamaño máximo en bytes y etiqueta para los mensajes, según el tipo de archivo."""
+    if ruta.lower().endswith(EXTENSIONES_IMAGEN):
+        return settings.max_imagen_bytes, "La imagen"
+    return settings.max_pdf_bytes, "El PDF"
+
+
+def guardar_documento(origen: BinaryIO, ruta: str, base: Path) -> ResultadoArchivo:
+    """Guarda un documento (PDF o imagen) subido directamente y lo valida."""
+    if not ruta.lower().endswith(EXTENSIONES_DOCUMENTO):
+        return ResultadoArchivo(ruta, motivo=MOTIVO_TIPO_NO_PERMITIDO)
     try:
         destino = destino_seguro(base, ruta)
     except ArchivoRechazado as e:
         return ResultadoArchivo(ruta, motivo=e.motivo)
     try:
-        tamano = copiar_con_limite(origen, destino, settings.max_pdf_bytes, "El PDF")
-        paginas = validar_pdf(destino)
+        limite, etiqueta = limite_documento(ruta)
+        tamano = copiar_con_limite(origen, destino, limite, etiqueta)
+        formato, paginas = validar_documento(destino, ruta)
     except ArchivoRechazado as e:
         destino.unlink(missing_ok=True)
         return ResultadoArchivo(ruta, motivo=e.motivo)
-    return ResultadoArchivo(ruta, destino, tamano, paginas)
+    return ResultadoArchivo(ruta, destino, tamano, paginas, formato)
 
 
 # --------------------------------------------------------------------- ZIP
@@ -204,8 +258,8 @@ def extraer_zip(zip_path: Path, base: Path) -> Iterator[ResultadoArchivo]:
             if ruta.lower().endswith(".zip"):
                 yield ResultadoArchivo(ruta, motivo="ZIP anidado no soportado")
                 continue
-            if not ruta.lower().endswith(".pdf"):
-                yield ResultadoArchivo(ruta, motivo="Tipo de archivo no permitido (solo PDF)")
+            if not ruta.lower().endswith(EXTENSIONES_DOCUMENTO):
+                yield ResultadoArchivo(ruta, motivo="Tipo de archivo no permitido (solo PDF, JPG o PNG)")
                 continue
             if (
                 info.compress_size
@@ -217,11 +271,12 @@ def extraer_zip(zip_path: Path, base: Path) -> Iterator[ResultadoArchivo]:
             destino = destino_seguro(base, ruta)
             try:
                 restante = settings.max_zip_descomprimido_bytes - descomprimido
-                limite = min(settings.max_pdf_bytes, restante)
+                maximo, etiqueta = limite_documento(ruta)
+                limite = min(maximo, restante)
                 with zf.open(info) as src:
-                    tamano = copiar_con_limite(src, destino, limite, "El PDF")
+                    tamano = copiar_con_limite(src, destino, limite, etiqueta)
                 descomprimido += tamano
-                paginas = validar_pdf(destino)
+                formato, paginas = validar_documento(destino, ruta)
             except ArchivoRechazado as e:
                 destino.unlink(missing_ok=True)
                 yield ResultadoArchivo(ruta, motivo=e.motivo)
@@ -231,7 +286,7 @@ def extraer_zip(zip_path: Path, base: Path) -> Iterator[ResultadoArchivo]:
                 yield ResultadoArchivo(ruta, motivo=f"No se pudo extraer ({type(e).__name__})")
                 continue
 
-            yield ResultadoArchivo(ruta, destino, tamano, paginas)
+            yield ResultadoArchivo(ruta, destino, tamano, paginas, formato)
 
 
 def procesar_zip(origen: BinaryIO, nombre: str, base: Path, tmp_dir: Path) -> list[ResultadoArchivo]:

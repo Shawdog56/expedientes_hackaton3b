@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
-from app.domain.documentos import AGENTE_POR_TIPO, EstadoClasificacion, TipoDocumental
+from app.domain.documentos import AGENTE_POR_TIPO, EstadoClasificacion, FormatoArchivo, TipoDocumental
 from app.domain.estados import (  # noqa: F401  (reexportados para compatibilidad)
     EstadoExpediente,
     EstadoExtraccion,
@@ -86,7 +86,7 @@ class Expediente(Base):
 
 
 class Documento(Base):
-    """PDF validado y guardado en disco; unidad de trabajo para un agente especialista."""
+    """Documento (PDF o imagen) validado y guardado en disco; unidad de trabajo para un agente especialista."""
 
     __tablename__ = "documentos"
 
@@ -98,7 +98,10 @@ class Documento(Base):
     ruta: Mapped[str] = mapped_column(String(1024))  # ruta relativa dentro del expediente
     ruta_almacenamiento: Mapped[str] = mapped_column(String(1024))  # ruta absoluta en el volumen
     tamano: Mapped[int] = mapped_column(BigInteger)
-    paginas: Mapped[int]
+    paginas: Mapped[int]  # las imágenes cuentan como 1
+    formato: Mapped[FormatoArchivo] = mapped_column(
+        enum_col(FormatoArchivo), default=FormatoArchivo.PDF, server_default=FormatoArchivo.PDF.value
+    )
     sha256: Mapped[str] = mapped_column(String(64), index=True)
 
     tipo_documental: Mapped[TipoDocumental | None] = mapped_column(

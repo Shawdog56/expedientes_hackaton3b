@@ -33,7 +33,7 @@ Cada capa solo puede importar las que aparecen a su derecha. Lo comprueba
   `tipo_documental` y `async extraer(solicitud) -> ResultadoExtraccion`.
 - Un agente solo importa `app.domain`, `app.agents.base` y
   `app.agents.contratos`. No toca la base de datos, no usa la API ni importa a
-  otro agente: recibe la ruta del PDF y devuelve características.
+  otro agente: recibe la ruta del archivo (PDF o imagen) y su `formato`, y devuelve características.
 - Los fallos de un agente se lanzan como excepción; quien orquesta los registra.
 - Los documentos pendientes de un expediente, agrupados por agente, salen de
   `services.expedientes.documentos_para_agentes(db, id)`; lo llama el servicio de

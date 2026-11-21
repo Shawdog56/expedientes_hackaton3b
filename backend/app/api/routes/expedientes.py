@@ -26,16 +26,16 @@ def tipos_documentales() -> list[TipoDocumentalOut]:
 
 @router.post("/expedientes", response_model=ExpedienteOut, status_code=status.HTTP_201_CREATED)
 def subir_expediente(
-    archivos: list[UploadFile] = File(..., description="PDFs sueltos/de una carpeta, o un .zip"),
+    archivos: list[UploadFile] = File(..., description="PDF, JPG o PNG sueltos/de una carpeta, o un .zip"),
     rutas: list[str] = Form(default=[], description="Ruta relativa de cada archivo, mismo orden"),
     nombre: str | None = Form(default=None),
     db: Session = Depends(get_db),
 ) -> Expediente:
-    """Recibe un expediente: valida cada PDF, descomprime los .zip y clasifica cada documento
+    """Recibe un expediente: valida cada documento (PDF, JPG o PNG), descomprime los .zip y clasifica cada documento
     por tipo documental a partir de su nombre (o de su carpeta).
 
     Responde 201 con documentos (y su clasificación) y rechazados (con motivo).
-    Si ningún PDF es válido responde 422 con la lista de rechazados.
+    Si ningún documento es válido responde 422 con la lista de rechazados.
     """
     if rutas and len(rutas) != len(archivos):
         raise HTTPException(422, "'rutas' debe tener un elemento por archivo")
@@ -52,7 +52,7 @@ def subir_expediente(
         return svc.crear_expediente(db, nombre, subidos)
     except svc.SinDocumentosValidos as e:
         raise HTTPException(
-            422, {"mensaje": "No se encontró ningún PDF válido", "rechazados": e.rechazados}
+            422, {"mensaje": "No se encontró ningún documento válido", "rechazados": e.rechazados}
         ) from None
 
 

@@ -16,13 +16,17 @@ export type EstadoClasificacion = 'clasificado' | 'sin_clasificar' | 'ambiguo' |
 
 export type EstadoExtraccion = 'pendiente' | 'en_proceso' | 'completada' | 'error' | 'no_aplica';
 
-/** PDF validado y clasificado por el backend (campos tal como llegan de la API). */
+export type FormatoArchivo = 'pdf' | 'jpeg' | 'png';
+
+/** Documento (PDF o imagen) validado y clasificado por el backend (campos tal como llegan de la API). */
 export interface DocumentoValidado {
   id: string;
   nombre: string;
   ruta: string;
   tamano: number;
+  /** Las imágenes cuentan como 1 página. */
   paginas: number;
+  formato: FormatoArchivo;
   tipo_documental: TipoDocumental | null;
   estado_clasificacion: EstadoClasificacion;
   fuente_clasificacion: string | null;

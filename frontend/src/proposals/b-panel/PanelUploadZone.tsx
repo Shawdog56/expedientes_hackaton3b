@@ -1,5 +1,6 @@
 import { AlertCircle, UploadCloud } from 'lucide-react';
 import type { Expediente } from '../../shared/types/expediente';
+import { ACEPTAR_ARCHIVOS } from '../../shared/utils/tiposArchivo';
 import { useExpedienteUpload } from './useExpedienteUpload';
 
 interface Props {
@@ -28,7 +29,7 @@ export function PanelUploadZone({ expedientesActuales, onExpedientesCargados }: 
       <div
         role="button"
         tabIndex={0}
-        aria-label="Zona para cargar el expediente. Arrastra una carpeta o archivos PDF o ZIP, o presiona para seleccionar archivos."
+        aria-label="Zona para cargar el expediente. Arrastra una carpeta o archivos PDF, JPG, PNG o ZIP, o presiona para seleccionar archivos."
         onClick={abrirSelectorArchivos}
         onKeyDown={handleDropzoneKeyDown}
         onDragOver={handleDragOver}
@@ -41,12 +42,12 @@ export function PanelUploadZone({ expedientesActuales, onExpedientesCargados }: 
       >
         <UploadCloud className={arrastrando ? 'h-8 w-8 text-brand' : 'h-8 w-8 text-muted'} aria-hidden="true" />
         <p className="text-sm font-medium text-ink">Arrastra una carpeta o archivos</p>
-        <p className="text-xs text-muted">PDF o .zip · también puedes hacer clic</p>
+        <p className="text-xs text-muted">PDF, JPG, PNG o .zip · también puedes hacer clic</p>
 
         <input
           ref={inputArchivosRef}
           type="file"
-          accept=".pdf,.zip"
+          accept={ACEPTAR_ARCHIVOS}
           multiple
           className="hidden"
           onChange={handleArchivosSeleccionados}

@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.domain.documentos import EstadoClasificacion, TipoDocumental
+from app.domain.documentos import EstadoClasificacion, FormatoArchivo, TipoDocumental
 from app.domain.estados import EstadoExpediente, EstadoExtraccion
 
 
@@ -16,6 +16,7 @@ class DocumentoOut(BaseModel):
     ruta: str
     tamano: int
     paginas: int
+    formato: FormatoArchivo
     tipo_documental: TipoDocumental | None
     estado_clasificacion: EstadoClasificacion
     fuente_clasificacion: str | None
