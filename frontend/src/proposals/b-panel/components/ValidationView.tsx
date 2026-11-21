@@ -1,4 +1,5 @@
-import { ArrowRight, CircleCheck, CircleX, Lock } from 'lucide-react';
+import { ArrowRight, CircleCheck, CircleX, Lock, RotateCcw } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 import type { DocumentoAnalisis, ExpedienteAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { useDecisionFinal } from '../useDecisionFinal';
@@ -6,8 +7,9 @@ import { CompetitionTab } from './CompetitionTab';
 import { DecisionFinalPanel } from './DecisionFinalPanel';
 import { DictamenBanner } from './DictamenBanner';
 import { DocumentCard } from './DocumentCard';
+import { DocumentosResumen } from './DocumentosResumen';
 import { ExpedienteSwitcher } from './ExpedienteSwitcher';
-import { FindingDrawer, type PuntoSeleccionado } from './FindingDrawer';
+import { FindingDrawer, type SeleccionHallazgo } from './FindingDrawer';
 import { StageBar } from './StageBar';
 
 interface Props {
@@ -18,10 +20,10 @@ interface Props {
   onVerArchivos: (documento: DocumentoAnalisis) => void;
 }
 
-type Pestana = 'validaciones' | 'competencia' | 'decision';
+type Pestana = 'legal' | 'competencia' | 'decision';
 
 const PESTANAS: { id: Pestana; etiqueta: string }[] = [
-  { id: 'validaciones', etiqueta: 'Validaciones' },
+  { id: 'legal', etiqueta: 'Análisis legal' },
   { id: 'competencia', etiqueta: 'Zona y competencia' },
   { id: 'decision', etiqueta: 'Decisión final' },
 ];
@@ -42,15 +44,15 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar,
       ? indiceActual
       : 0;
 
-  const [pestana, setPestana] = useState<Pestana>('validaciones');
-  const [puntoAbierto, setPuntoAbierto] = useState<PuntoSeleccionado | null>(null);
+  const [pestana, setPestana] = useState<Pestana>('legal');
+  const [hallazgoAbierto, setHallazgoAbierto] = useState<SeleccionHallazgo | null>(null);
   // Expedientes cuya pestaña "Zona y competencia" ya se abrió: sin verla no se habilita la decisión final.
   const [zonaRevisada, setZonaRevisada] = useState<Record<string, true>>({});
   const { porExpediente, decidir, sinDecision } = useDecisionFinal();
 
   const seleccionarExpediente = (indice: number) => {
     setSeleccionManual(indice);
-    setPestana('validaciones');
+    setPestana('legal');
   };
 
   const actual = analisis[seleccionado];
@@ -68,27 +70,55 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar,
     setPestana(destino);
   };
 
-  const bloqueValidaciones = (
+  const bloqueAnalisisLegal = (
     <div className="space-y-5">
-      <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+      {finalizado && actual.dictamen && <DictamenBanner dictamen={actual.dictamen} documentos={actual.documentos} />}
+
+      {finalizado ? (
         <StageBar
           etapaActual={actual.etapaActual}
           etapasCompletadas={actual.etapasCompletadas}
           progreso={actual.progreso}
+          compacto
         />
-      </div>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
-        {actual.documentos.map((documento) => (
-          <DocumentCard
-            key={documento.tipoId}
-            documento={documento}
-            enValidacion={actual.documentoEnValidacion === documento.tipoId}
-            interactivo={finalizado}
-            onAbrirPunto={setPuntoAbierto}
-            onVerArchivos={() => onVerArchivos(documento)}
+      ) : (
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <StageBar
+            etapaActual={actual.etapaActual}
+            etapasCompletadas={actual.etapasCompletadas}
+            progreso={actual.progreso}
+            compacto={false}
           />
+        </div>
+      )}
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
+        {actual.documentos.map((documento, indice) => (
+          <motion.div
+            key={documento.tipoId}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: indice * 0.08 }}
+          >
+            <DocumentCard
+              documento={documento}
+              enValidacion={actual.documentoEnValidacion === documento.tipoId}
+              interactivo={finalizado}
+              onAbrirPunto={setHallazgoAbierto}
+              onVerArchivos={() => onVerArchivos(documento)}
+            />
+          </motion.div>
         ))}
       </div>
+
+      {finalizado && <DocumentosResumen archivosNoReconocidos={actual.archivosNoReconocidos} />}
+
+      {finalizado && !revisoZona && (
+        <p className="text-sm text-muted">
+          Siguiente paso: revisa <strong className="font-medium text-ink">Zona y competencia</strong> para habilitar la
+          decisión final.
+        </p>
+      )}
     </div>
   );
 
@@ -112,92 +142,109 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar,
         <button
           type="button"
           onClick={onReiniciar}
-          className="shrink-0 text-sm font-medium text-brand underline underline-offset-2 hover:no-underline"
+          style={{ borderColor: '#CFCFCF' }}
+          className="flex min-h-11 shrink-0 items-center gap-2 self-end rounded-[10px] border bg-white px-4 text-sm font-semibold text-ink transition-colors hover:bg-[#F5F5F5]"
         >
+          <RotateCcw className="h-[18px] w-[18px] shrink-0 text-ink" aria-hidden="true" />
           Analizar otro lote
         </button>
       </div>
 
-      {finalizado && actual.dictamen && (
-        <DictamenBanner dictamen={actual.dictamen} totalDocumentos={actual.documentos.length} />
-      )}
+      <motion.div
+        key={seleccionado}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
+        {finalizado ? (
+          <div>
+            <div role="tablist" aria-label="Secciones del expediente" className="flex gap-1 border-b border-border">
+              {PESTANAS.map((item) => {
+                const activo = pestana === item.id;
+                const bloqueada = item.id === 'decision' && !revisoZona;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    id={`tab-${item.id}`}
+                    aria-selected={activo}
+                    aria-controls={`panel-${item.id}`}
+                    aria-disabled={bloqueada || undefined}
+                    title={bloqueada ? 'Revisa primero la pestaña Zona y competencia' : undefined}
+                    onClick={() => abrirPestana(item.id)}
+                    className={`relative inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors ${
+                      activo ? 'text-ink' : 'text-muted'
+                    } ${bloqueada ? 'cursor-not-allowed opacity-60' : 'hover:text-ink'}`}
+                  >
+                    {bloqueada && <Lock className="h-3.5 w-3.5" aria-hidden="true" />}
+                    {item.etiqueta}
+                    {item.id === 'decision' && estadoDecision.decision === 'aceptado' && (
+                      <CircleCheck className="h-4 w-4 text-ok" aria-label="Aceptado" />
+                    )}
+                    {item.id === 'decision' && estadoDecision.decision === 'rechazado' && (
+                      <CircleX className="h-4 w-4 text-error" aria-label="Rechazado" />
+                    )}
+                    {activo && (
+                      <motion.span
+                        layoutId="subrayado-pestana"
+                        className="absolute inset-x-0 -bottom-px h-0.5 bg-brand"
+                        transition={{ duration: 0.2 }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-      {finalizado ? (
-        <div>
-          <div role="tablist" aria-label="Secciones del expediente" className="flex gap-1 border-b border-border">
-            {PESTANAS.map(({ id, etiqueta }) => {
-              const bloqueada = id === 'decision' && !revisoZona;
-              const activa = pestana === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  id={`tab-${id}`}
-                  aria-selected={activa}
-                  aria-controls={`panel-${id}`}
-                  aria-disabled={bloqueada || undefined}
-                  title={bloqueada ? 'Revisa primero la pestaña Zona y competencia' : undefined}
-                  onClick={() => abrirPestana(id)}
-                  className={`inline-flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                    activa ? 'border-brand text-ink' : 'border-transparent text-muted'
-                  } ${bloqueada ? 'cursor-not-allowed opacity-60' : 'hover:text-ink'}`}
-                >
-                  {bloqueada && <Lock className="h-3.5 w-3.5" aria-hidden="true" />}
-                  {etiqueta}
-                  {id === 'decision' && estadoDecision.decision === 'aceptado' && (
-                    <CircleCheck className="h-4 w-4 text-ok" aria-label="Aceptado" />
-                  )}
-                  {id === 'decision' && estadoDecision.decision === 'rechazado' && (
-                    <CircleX className="h-4 w-4 text-error" aria-label="Rechazado" />
-                  )}
-                </button>
-              );
-            })}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={pestana}
+                role="tabpanel"
+                id={`panel-${pestana}`}
+                aria-labelledby={`tab-${pestana}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onAnimationComplete={() => {
+                  if (pestana === 'competencia') window.dispatchEvent(new Event('resize'));
+                }}
+                className="pt-4"
+              >
+                {pestana === 'legal' && bloqueAnalisisLegal}
+                {pestana === 'competencia' && (
+                  <div className="space-y-4">
+                    <CompetitionTab />
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => abrirPestana('decision')}
+                        className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2.5 font-medium text-white transition-colors hover:bg-brand-dark"
+                      >
+                        Continuar a la decisión final
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {pestana === 'decision' && (
+                  <DecisionFinalPanel
+                    key={actual.expedienteId}
+                    analisis={actual}
+                    estado={estadoDecision}
+                    onDecidir={(decision) => void decidir(actual.expedienteId, actual.idServidor, decision)}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
+        ) : (
+          bloqueAnalisisLegal
+        )}
+      </motion.div>
 
-          {pestana === 'validaciones' && (
-            <div role="tabpanel" id="panel-validaciones" aria-labelledby="tab-validaciones" className="space-y-4 pt-4">
-              {bloqueValidaciones}
-              {!revisoZona && (
-                <p className="text-sm text-muted">
-                  Siguiente paso: revisa <strong className="font-medium text-ink">Zona y competencia</strong> para
-                  habilitar la decisión final.
-                </p>
-              )}
-            </div>
-          )}
-          {pestana === 'competencia' && (
-            <div role="tabpanel" id="panel-competencia" aria-labelledby="tab-competencia" className="space-y-4 pt-4">
-              <CompetitionTab />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => abrirPestana('decision')}
-                  className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2.5 font-medium text-white transition-colors hover:bg-brand-dark"
-                >
-                  Continuar a la decisión final
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-          )}
-          {pestana === 'decision' && (
-            <div role="tabpanel" id="panel-decision" aria-labelledby="tab-decision" className="pt-4">
-              <DecisionFinalPanel
-                key={actual.expedienteId}
-                analisis={actual}
-                estado={estadoDecision}
-                onDecidir={(decision) => void decidir(actual.expedienteId, actual.idServidor, decision)}
-              />
-            </div>
-          )}
-        </div>
-      ) : (
-        bloqueValidaciones
-      )}
-
-      <FindingDrawer punto={puntoAbierto} onCerrar={() => setPuntoAbierto(null)} />
+      <FindingDrawer seleccion={hallazgoAbierto} onCerrar={() => setHallazgoAbierto(null)} />
     </div>
   );
 }

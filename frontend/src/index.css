@@ -4,6 +4,18 @@
   color-scheme: light;
 }
 
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
+/* Respaldo: si el navegador igual deja ver algo durante el rebote
+   (p. ej. con touchpad), que sea del mismo color que el header/footer,
+   no una franja gris. El fondo claro del contenido lo pone `body`. */
+html {
+  background-color: var(--color-ink);
+}
+
 body {
   margin: 0;
   background: var(--color-bg);
@@ -15,4 +27,13 @@ body {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

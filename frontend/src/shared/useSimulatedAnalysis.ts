@@ -42,6 +42,7 @@ export interface ExpedienteAnalisis {
   progreso: number;
   documentoEnValidacion: TipoDocumentalId | null;
   documentos: DocumentoAnalisis[];
+  archivosNoReconocidos: string[];
   dictamen: Dictamen | null;
 }
 
@@ -76,12 +77,15 @@ function crearExpedienteAnalisis(expediente: Expediente): ExpedienteAnalisis {
     progreso: 0,
     documentoEnValidacion: null,
     documentos: crearDocumentosIniciales(expediente),
+    // Documentos que el backend no pudo clasificar: la persona los ve y los reclasifica a mano.
+    archivosNoReconocidos: expediente.documentos
+      .filter((documento) => documento.tipo_documental === null)
+      .map((documento) => documento.ruta),
     dictamen: null,
   };
 }
 
 const TODAS_LAS_ETAPAS = ETAPAS.map((etapa) => etapa.id);
-const TOTAL_PUNTOS = REGLAS_VALIDACION.reduce((total, tipo) => total + tipo.reglas.length, 0);
 
 /**
  * Simula el análisis multiagente de una lista de expedientes ya clasificados por el
@@ -181,28 +185,27 @@ export function useSimulatedAnalysis() {
           progreso: 40,
         });
 
+        // Un tipo sin documento en el expediente no se valida: queda como faltante.
+        const tiposAValidar = REGLAS_VALIDACION.filter((tipo) =>
+          expedientes[indice].documentos.some((documento) => documento.tipo_documental === TIPO_DOCUMENTAL_API[tipo.id]),
+        );
+        const totalPuntosExpediente = tiposAValidar.reduce((total, tipo) => total + tipo.reglas.length, 0);
+
         let puntosResueltos = 0;
-        for (const tipo of REGLAS_VALIDACION) {
+        for (const tipo of tiposAValidar) {
           if (canceladoRef.current) return;
           actualizarExpediente(indice, { documentoEnValidacion: tipo.id });
-          const documentoFaltante = !expedientes[indice].documentos.some(
-            (documento) => documento.tipo_documental === TIPO_DOCUMENTAL_API[tipo.id],
-          );
-
           for (const regla of tipo.reglas) {
             if (canceladoRef.current) return;
             actualizarRegla(indice, tipo.id, regla.id, 'validando');
             await esperar(DURACION_PUNTO_MS);
             if (canceladoRef.current) return;
 
-            actualizarRegla(
-              indice,
-              tipo.id,
-              regla.id,
-              resultadoRegla(tipo.id, regla.id, documentoFaltante),
-            );
+            actualizarRegla(indice, tipo.id, regla.id, resultadoRegla(tipo.id, regla.id, false));
             puntosResueltos += 1;
-            actualizarExpediente(indice, { progreso: 40 + (puntosResueltos / TOTAL_PUNTOS) * 20 });
+            actualizarExpediente(indice, {
+              progreso: totalPuntosExpediente > 0 ? 40 + (puntosResueltos / totalPuntosExpediente) * 20 : 60,
+            });
           }
         }
         actualizarExpediente(indice, { documentoEnValidacion: null });
@@ -231,7 +234,10 @@ export function useSimulatedAnalysis() {
           const hayRevisar = expedienteActual.documentos.some((documento) =>
             documento.reglas.some((regla) => regla.estado === 'revisar'),
           );
-          const dictamen: Dictamen = hayNoCumple ? 'no_cumple' : hayRevisar ? 'revision' : 'cumple';
+          const hayFaltante = expedienteActual.documentos.some((documento) => documento.faltante);
+          // Un documento faltante nunca degrada a "no cumple": el reto penaliza descartar
+          // expedientes que sí podían continuar su revisión.
+          const dictamen: Dictamen = hayNoCumple ? 'no_cumple' : hayRevisar || hayFaltante ? 'revision' : 'cumple';
 
           return actuales.map((item, i) =>
             i === indice

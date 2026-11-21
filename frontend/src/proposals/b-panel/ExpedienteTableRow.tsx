@@ -1,6 +1,8 @@
-import { AlertCircle, ChevronDown, ChevronRight, FileArchive, Files, Folder, Trash2 } from 'lucide-react';
+import { AlertCircle, ChevronRight, FileArchive, Files, Folder, Trash2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 import { ChipTipo, FilaDocumento, Resumen } from '../../shared/components/ClasificacionExpediente';
+import { useAnimaciones } from '../../shared/motion';
 import {
   comoArchivoVisible,
   ETIQUETA_TIPO,
@@ -15,6 +17,7 @@ import { esDocumento } from '../../shared/utils/tiposArchivo';
 
 interface Props {
   expediente: Expediente;
+  indice: number;
   onQuitar: (id: string) => void;
   onReclasificar: (id: string, documentoId: string, tipo: TipoDocumental | null) => void;
   onVer: (documento: DocumentoParaVer) => void;
@@ -36,7 +39,8 @@ function etiquetas(tipos: TipoDocumental[]): string {
   return tipos.map((tipo) => ETIQUETA_TIPO[tipo]).join(', ');
 }
 
-export function ExpedienteTableRow({ expediente, onQuitar, onReclasificar, onVer }: Props) {
+export function ExpedienteTableRow({ expediente, indice, onQuitar, onReclasificar, onVer }: Props) {
+  const { reducido } = useAnimaciones();
   const sinClasificar = expediente.documentos.filter((doc) => doc.tipo_documental === null);
   const [verDetalle, setVerDetalle] = useState<boolean | null>(null);
   // Se abre sola si hay documentos que requieren clasificación manual.
@@ -48,7 +52,13 @@ export function ExpedienteTableRow({ expediente, onQuitar, onReclasificar, onVer
 
   return (
     <>
-      <tr>
+      <motion.tr
+        initial={reducido ? { opacity: 0 } : { opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={reducido ? { opacity: 0 } : { opacity: 0, height: 0 }}
+        transition={{ duration: 0.2, delay: reducido ? 0 : indice * 0.04 }}
+        style={{ overflow: 'hidden' }}
+      >
         <td className="px-4 py-3">
           <div className="flex items-center gap-2.5">
             <Icono className="h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
@@ -74,11 +84,9 @@ export function ExpedienteTableRow({ expediente, onQuitar, onReclasificar, onVer
               }
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-bg hover:text-ink"
             >
-              {abierto ? (
-                <ChevronDown className="h-4 w-4" aria-hidden="true" />
-              ) : (
+              <motion.span className="flex" animate={{ rotate: abierto ? 90 : 0 }} transition={{ duration: 0.2 }}>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              )}
+              </motion.span>
             </button>
             <button
               type="button"
@@ -90,93 +98,101 @@ export function ExpedienteTableRow({ expediente, onQuitar, onReclasificar, onVer
             </button>
           </div>
         </td>
-      </tr>
-      {abierto && (
-        <tr>
-          <td colSpan={6} className="space-y-3 border-t border-border bg-bg px-4 py-3">
-            {validado ? (
-              <>
-                <ul className="flex flex-wrap gap-1.5">
-                  {TIPOS_DOCUMENTALES.map(({ valor, etiqueta }) => (
-                    <ChipTipo key={valor} expediente={expediente} tipo={valor} etiqueta={etiqueta} />
-                  ))}
-                </ul>
-                {expediente.tiposFaltantes.length > 0 && (
-                  <p className="flex items-start gap-2 text-xs text-error">
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    Faltan documentos: {etiquetas(expediente.tiposFaltantes)}.
-                  </p>
-                )}
-                {expediente.tiposDuplicados.length > 0 && (
-                  <p className="flex items-start gap-2 text-xs text-ink">
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-hidden="true" />
-                    Hay más de un documento de: {etiquetas(expediente.tiposDuplicados)}.
-                  </p>
-                )}
-                {expediente.documentos.length > 0 && (
-                  <ul className="max-h-72 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-surface p-1">
-                    {[...expediente.documentos]
-                      .sort((a, b) => Number(a.tipo_documental !== null) - Number(b.tipo_documental !== null))
-                      .map((doc) => (
-                        <FilaDocumento
-                          key={doc.id}
-                          doc={doc}
-                          onCambiarTipo={(tipo) => onReclasificar(expediente.id, doc.id, tipo)}
-                          onVer={() =>
-                            onVer({
-                              titulo: expediente.nombre,
-                              archivos: expediente.documentos.map(comoArchivoVisible),
-                              indiceInicial: expediente.documentos.findIndex((item) => item.id === doc.id),
-                            })
-                          }
-                        />
-                      ))}
+      </motion.tr>
+      <AnimatePresence initial={false}>
+        {abierto && (
+          <motion.tr
+            initial={reducido ? { opacity: 0 } : { opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={reducido ? { opacity: 0 } : { opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <td colSpan={6} className="space-y-3 border-t border-border bg-bg px-4 py-3">
+              {validado ? (
+                <>
+                  <ul className="flex flex-wrap gap-1.5">
+                    {TIPOS_DOCUMENTALES.map(({ valor, etiqueta }) => (
+                      <ChipTipo key={valor} expediente={expediente} tipo={valor} etiqueta={etiqueta} />
+                    ))}
                   </ul>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {documentosEnviados.length === 0 ? (
-                  <span className="text-xs text-muted">
-                    {esZip
-                      ? 'El contenido del .zip se revisa al validarlo.'
-                      : 'No se encontraron documentos en este expediente.'}
-                  </span>
-                ) : (
-                  documentosEnviados.map((archivo) => (
-                    <span
-                      key={archivo.ruta}
-                      className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-ink"
-                    >
-                      {archivo.nombre}
+                  {expediente.tiposFaltantes.length > 0 && (
+                    <p className="flex items-start gap-2 text-xs text-error">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      Faltan documentos: {etiquetas(expediente.tiposFaltantes)}.
+                    </p>
+                  )}
+                  {expediente.tiposDuplicados.length > 0 && (
+                    <p className="flex items-start gap-2 text-xs text-ink">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-hidden="true" />
+                      Hay más de un documento de: {etiquetas(expediente.tiposDuplicados)}.
+                    </p>
+                  )}
+                  {expediente.documentos.length > 0 && (
+                    <ul className="max-h-72 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-surface p-1">
+                      {[...expediente.documentos]
+                        .sort((a, b) => Number(a.tipo_documental !== null) - Number(b.tipo_documental !== null))
+                        .map((doc) => (
+                          <FilaDocumento
+                            key={doc.id}
+                            doc={doc}
+                            onCambiarTipo={(tipo) => onReclasificar(expediente.id, doc.id, tipo)}
+                            onVer={() =>
+                              onVer({
+                                titulo: expediente.nombre,
+                                archivos: expediente.documentos.map(comoArchivoVisible),
+                                indiceInicial: expediente.documentos.findIndex((item) => item.id === doc.id),
+                              })
+                            }
+                          />
+                        ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {documentosEnviados.length === 0 ? (
+                    <span className="text-xs text-muted">
+                      {esZip
+                        ? 'El contenido del .zip se revisa al validarlo.'
+                        : 'No se encontraron documentos en este expediente.'}
                     </span>
-                  ))
-                )}
-              </div>
-            )}
-            {expediente.rechazados.length > 0 && (
-              <div>
-                <p className="mb-1 text-xs font-medium text-error">
-                  {plural(expediente.rechazados.length, 'archivo rechazado', 'archivos rechazados')}
-                </p>
-                <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-error/30 bg-error/5 p-2">
-                  {expediente.rechazados.map((archivo, indice) => (
-                    <li key={`${archivo.ruta}-${indice}`} className="flex items-start gap-2 px-2 py-1 text-sm">
-                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-error" aria-hidden="true" />
-                      <span className="min-w-0">
-                        <span className="block truncate text-ink" title={archivo.ruta}>
-                          {archivo.ruta}
-                        </span>
-                        <span className="block text-error">{archivo.motivo}</span>
+                  ) : (
+                    documentosEnviados.map((archivo) => (
+                      <span
+                        key={archivo.ruta}
+                        className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-ink"
+                      >
+                        {archivo.nombre}
                       </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </td>
-        </tr>
-      )}
+                    ))
+                  )}
+                </div>
+              )}
+              {expediente.rechazados.length > 0 && (
+                <div>
+                  <p className="mb-1 text-xs font-medium text-error">
+                    {plural(expediente.rechazados.length, 'archivo rechazado', 'archivos rechazados')}
+                  </p>
+                  <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-error/30 bg-error/5 p-2">
+                    {expediente.rechazados.map((archivo, posicion) => (
+                      <li key={`${archivo.ruta}-${posicion}`} className="flex items-start gap-2 px-2 py-1 text-sm">
+                        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-error" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block truncate text-ink" title={archivo.ruta}>
+                            {archivo.ruta}
+                          </span>
+                          <span className="block text-error">{archivo.motivo}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </td>
+          </motion.tr>
+        )}
+      </AnimatePresence>
     </>
   );
 }

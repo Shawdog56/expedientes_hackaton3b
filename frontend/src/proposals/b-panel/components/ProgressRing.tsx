@@ -1,4 +1,6 @@
 import { Check, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useAnimaciones } from '../../../shared/motion';
 
 export type EstadoAnillo = 'en_espera' | 'validando' | 'completo' | 'revisar' | 'no_cumple';
 
@@ -34,6 +36,7 @@ const COLOR_RELLENO: Record<EstadoAnillo, string> = {
  * documento. El arco arranca arriba porque el SVG completo está rotado.
  */
 export function ProgressRing({ estado, resueltos, total, etiqueta }: Props) {
+  const { reducido } = useAnimaciones();
   const fraccion = total > 0 ? resueltos / total : 0;
   const relleno = estado === 'completo' || estado === 'revisar' || estado === 'no_cumple';
   const offset = CIRCUNFERENCIA * (1 - (relleno ? 1 : fraccion));
@@ -58,12 +61,34 @@ export function ProgressRing({ estado, resueltos, total, etiqueta }: Props) {
         {relleno && <circle cx="20" cy="20" r={RADIO - 3} className={COLOR_RELLENO[estado]} />}
       </svg>
       <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-        {estado === 'validando' && (
-          <span className="text-[11px] font-semibold text-ink">{Math.round(fraccion * 100)}%</span>
-        )}
-        {estado === 'completo' && <Check className="h-4 w-4 text-white" />}
-        {estado === 'revisar' && <span className="text-sm font-bold leading-none text-white">!</span>}
-        {estado === 'no_cumple' && <X className="h-4 w-4 text-white" />}
+        <AnimatePresence mode="wait" initial={false}>
+          {estado === 'validando' && (
+            <motion.span
+              key="porcentaje"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="text-[11px] font-semibold text-ink"
+            >
+              {Math.round(fraccion * 100)}%
+            </motion.span>
+          )}
+          {(estado === 'completo' || estado === 'revisar' || estado === 'no_cumple') && (
+            <motion.span
+              key={estado}
+              initial={reducido ? { opacity: 0 } : { opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={reducido ? { duration: 0.15 } : { type: 'spring', stiffness: 420, damping: 18 }}
+              className="flex items-center justify-center"
+            >
+              {estado === 'completo' && <Check className="h-4 w-4 text-white" />}
+              {estado === 'revisar' && <span className="text-sm font-bold leading-none text-white">!</span>}
+              {estado === 'no_cumple' && <X className="h-4 w-4 text-white" />}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </span>
     </div>
   );

@@ -1,18 +1,108 @@
-import { ChevronRight, Eye } from 'lucide-react';
-import type { DocumentoAnalisis } from '../../../shared/useSimulatedAnalysis';
+import { ChevronRight, Eye, FileX } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useEffect, useRef, useState } from 'react';
+import { useAnimaciones } from '../../../shared/motion';
+import type { DocumentoAnalisis, EstadoRegla } from '../../../shared/useSimulatedAnalysis';
+import { REGLAS_VALIDACION } from '../../../shared/validationRules';
 import { EstadoIcono } from './EstadoIcono';
-import type { PuntoSeleccionado } from './FindingDrawer';
+import type { SeleccionHallazgo } from './FindingDrawer';
 import { ProgressRing, type EstadoAnillo } from './ProgressRing';
 
 interface Props {
   documento: DocumentoAnalisis;
   enValidacion: boolean;
   interactivo: boolean;
-  onAbrirPunto: (punto: PuntoSeleccionado) => void;
+  onAbrirPunto: (seleccion: SeleccionHallazgo) => void;
   onVerArchivos: () => void;
 }
 
+const FLASH_HALLAZGO = { backgroundColor: ['rgba(217,119,6,0)', 'rgba(217,119,6,0.3)', 'rgba(217,119,6,0)'] };
+
+interface FilaReglaProps {
+  regla: EstadoRegla;
+  interactivo: boolean;
+  onAbrir: () => void;
+}
+
+/** Fila de un punto de validación: se encarga de su propio flash ámbar, único, cuando pasa a tener un hallazgo. */
+function FilaRegla({ regla, interactivo, onAbrir }: FilaReglaProps) {
+  const { reducido } = useAnimaciones();
+  const anteriorRef = useRef(regla.estado);
+  const [flasheando, setFlasheando] = useState(false);
+
+  useEffect(() => {
+    const esHallazgoAhora = regla.estado === 'revisar' || regla.estado === 'no_cumple';
+    const eraHallazgoAntes = anteriorRef.current === 'revisar' || anteriorRef.current === 'no_cumple';
+    anteriorRef.current = regla.estado;
+    if (esHallazgoAhora && !eraHallazgoAntes && !reducido) {
+      setFlasheando(true);
+      const id = setTimeout(() => setFlasheando(false), 700);
+      return () => clearTimeout(id);
+    }
+  }, [regla.estado, reducido]);
+
+  const fondoHallazgo = regla.estado === 'revisar' ? 'bg-warn/10' : regla.estado === 'no_cumple' ? 'bg-error/10' : '';
+
+  if (!interactivo) {
+    return (
+      <motion.li
+        className={`flex items-start gap-2 rounded-md px-2 py-1.5 text-sm ${fondoHallazgo}`}
+        animate={flasheando ? FLASH_HALLAZGO : undefined}
+        transition={{ duration: 0.7 }}
+      >
+        <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0" />
+        <span className="text-ink">{regla.etiqueta}</span>
+      </motion.li>
+    );
+  }
+
+  return (
+    <li>
+      <motion.button
+        type="button"
+        onClick={onAbrir}
+        animate={flasheando ? FLASH_HALLAZGO : undefined}
+        transition={{ duration: 0.7 }}
+        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-bg ${fondoHallazgo}`}
+      >
+        <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0 self-start" />
+        <span className="flex-1 text-ink">{regla.etiqueta}</span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+      </motion.button>
+    </li>
+  );
+}
+
 export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunto, onVerArchivos }: Props) {
+  const Icono = REGLAS_VALIDACION.find((tipo) => tipo.id === documento.tipoId)?.Icono;
+
+  if (documento.faltante) {
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border border-dashed border-border bg-[#FAFAFA] p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-start gap-2">
+            {Icono && <Icono className="mt-0.5 h-5 w-5 shrink-0 text-muted" aria-hidden="true" />}
+            <div className="min-w-0">
+              <p className="font-medium text-ink">{documento.nombre}</p>
+              <p className="text-xs text-muted">No se encontró en el expediente</p>
+            </div>
+          </div>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg">
+            <FileX className="h-6 w-6 text-muted" aria-hidden="true" />
+          </div>
+        </div>
+        <ul className="space-y-1">
+          {documento.reglas.map((regla) => (
+            <li key={regla.id} className="flex items-start gap-2 rounded-md px-2 py-1.5 text-sm text-muted">
+              <EstadoIcono estado="pendiente" className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{regla.etiqueta}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   const total = documento.reglas.length;
   const resueltos = documento.reglas.filter(
     (regla) => regla.estado !== 'pendiente' && regla.estado !== 'validando',
@@ -49,67 +139,45 @@ export function DocumentCard({ documento, enValidacion, interactivo, onAbrirPunt
   return (
     <div className={`flex flex-col gap-3 rounded-xl bg-surface p-4 shadow-sm ${bordeClase}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-medium text-ink">{documento.nombre}</p>
-          <p
-            className={`truncate text-xs ${documento.faltante ? 'font-medium text-error' : 'text-muted'}`}
-            title={documento.archivo ?? undefined}
-          >
-            {documento.archivo ?? 'Documento faltante en el expediente'}
-          </p>
-          {documento.archivos.length > 0 && (
-            <button
-              type="button"
-              onClick={onVerArchivos}
-              className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-ink transition-colors hover:border-brand/50 hover:bg-bg"
-            >
-              <Eye className="h-3 w-3" aria-hidden="true" />
-              {documento.archivos.length === 1 ? 'Ver archivo' : `Ver archivos (${documento.archivos.length})`}
-            </button>
-          )}
+        <div className="flex min-w-0 items-start gap-2">
+          {Icono && <Icono className="mt-0.5 h-5 w-5 shrink-0 text-muted" aria-hidden="true" />}
+          <div className="min-w-0">
+            <p className="font-medium text-ink">{documento.nombre}</p>
+            <p className="truncate text-xs text-muted" title={documento.archivo ?? undefined}>
+              {documento.archivo}
+            </p>
+            {documento.archivos.length > 0 && (
+              <button
+                type="button"
+                onClick={onVerArchivos}
+                className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-ink transition-colors hover:border-brand/50 hover:bg-bg"
+              >
+                <Eye className="h-3 w-3" aria-hidden="true" />
+                {documento.archivos.length === 1 ? 'Ver archivo' : `Ver archivos (${documento.archivos.length})`}
+              </button>
+            )}
+          </div>
         </div>
         <ProgressRing estado={estadoAnillo} resueltos={resueltos} total={total} etiqueta={etiquetaAnillo} />
       </div>
       <ul className="space-y-1">
-        {documento.reglas.map((regla) => {
-          const fondoHallazgo =
-            regla.estado === 'revisar' ? 'bg-warn/10' : regla.estado === 'no_cumple' ? 'bg-error/10' : '';
-
-          if (!interactivo) {
-            return (
-              <li
-                key={regla.id}
-                className={`flex items-start gap-2 rounded-md px-2 py-1.5 text-sm ${fondoHallazgo}`}
-              >
-                <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0" />
-                <span className="text-ink">{regla.etiqueta}</span>
-              </li>
-            );
-          }
-
-          return (
-            <li key={regla.id}>
-              <button
-                type="button"
-                onClick={() =>
-                  onAbrirPunto({
-                    tipoId: documento.tipoId,
-                    reglaId: regla.id,
-                    reglaEtiqueta: regla.etiqueta,
-                    estado: regla.estado,
-                    documentoNombre: documento.nombre,
-                    documentoArchivo: documento.archivo ?? documento.nombre,
-                  })
-                }
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-bg ${fondoHallazgo}`}
-              >
-                <EstadoIcono estado={regla.estado} className="mt-0.5 h-4 w-4 shrink-0 self-start" />
-                <span className="flex-1 text-ink">{regla.etiqueta}</span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
-              </button>
-            </li>
-          );
-        })}
+        {documento.reglas.map((regla) => (
+          <FilaRegla
+            key={regla.id}
+            regla={regla}
+            interactivo={interactivo}
+            onAbrir={() =>
+              onAbrirPunto({
+                tipoId: documento.tipoId,
+                reglaId: regla.id,
+                reglaEtiqueta: regla.etiqueta,
+                estado: regla.estado,
+                documentoNombre: documento.nombre,
+                documentoArchivo: documento.archivo ?? documento.nombre,
+              })
+            }
+          />
+        ))}
       </ul>
     </div>
   );

@@ -31,7 +31,9 @@ function leerColorToken(variable: string, respaldo: string): string {
   return valor || respaldo;
 }
 
-function crearIconoTienda(cadena: Cadena, distanciaM: number, pequeno: boolean): DivIcon {
+const RETARDO_PIN_MS = 30;
+
+function crearIconoTienda(cadena: Cadena, distanciaM: number, pequeno: boolean, indice: number): DivIcon {
   const info = CADENAS[cadena];
   const logo = LOGOS_CADENA[cadena];
   const tamano = pequeno ? 22 : 28;
@@ -43,7 +45,7 @@ function crearIconoTienda(cadena: Cadena, distanciaM: number, pequeno: boolean):
 
   return divIcon({
     className: 'mapa-pin-wrapper',
-    html: `<span class="mapa-pin mapa-pin--tienda${pequeno ? ' mapa-pin--pequeno' : ''}" style="--pin-color: ${info.color}" role="img" aria-label="${etiqueta}"><span class="mapa-pin__cola"></span><span class="mapa-pin__circulo">${contenido}</span></span>`,
+    html: `<span class="mapa-pin mapa-pin--tienda mapa-pin--animado${pequeno ? ' mapa-pin--pequeno' : ''}" style="--pin-color: ${info.color}; --pin-delay: ${indice * RETARDO_PIN_MS}ms" role="img" aria-label="${etiqueta}"><span class="mapa-pin__cola"></span><span class="mapa-pin__circulo">${contenido}</span></span>`,
     iconSize: [tamano, alto],
     iconAnchor: [tamano / 2, alto],
     popupAnchor: [0, -alto],
@@ -53,7 +55,7 @@ function crearIconoTienda(cadena: Cadena, distanciaM: number, pequeno: boolean):
 function crearIconoInmueble(direccion: string, color: string): DivIcon {
   return divIcon({
     className: 'mapa-pin-wrapper',
-    html: `<span class="mapa-pin mapa-pin--inmueble" style="--pin-color: ${color}" role="img" aria-label="Inmueble: ${direccion}"><span class="mapa-pin__cola"></span><span class="mapa-pin__circulo">${ICONO_CASA_SVG}</span></span>`,
+    html: `<span class="mapa-pin mapa-pin--inmueble mapa-pin--animado" style="--pin-color: ${color}" role="img" aria-label="Inmueble: ${direccion}"><span class="mapa-pin__cola"></span><span class="mapa-pin__circulo">${ICONO_CASA_SVG}</span></span>`,
     iconSize: [36, 46],
     iconAnchor: [18, 46],
     popupAnchor: [0, -46],
@@ -129,11 +131,11 @@ function TiendaMarkers({ tiendas }: TiendaMarkersProps) {
 
   return (
     <>
-      {tiendas.map((tienda) => (
+      {tiendas.map((tienda, indice) => (
         <Marker
           key={tienda.id}
           position={[tienda.lat, tienda.lng]}
-          icon={crearIconoTienda(tienda.cadena, tienda.distancia, pequeno)}
+          icon={crearIconoTienda(tienda.cadena, tienda.distancia, pequeno, indice)}
         >
           <Popup>
             <strong>{tienda.nombre}</strong>
@@ -318,13 +320,23 @@ export function CompetitionTab() {
           <ul className="divide-y divide-border">
             {porCadena.map(([cadena, info]) => (
               <li key={cadena} className="flex items-center gap-3 px-4 py-3">
-                <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-                  style={{ backgroundColor: CADENAS[cadena].color }}
-                  aria-hidden="true"
-                >
-                  {CADENAS[cadena].nombre.charAt(0)}
-                </span>
+                {LOGOS_CADENA[cadena] ? (
+                  <img
+                    src={LOGOS_CADENA[cadena]}
+                    alt=""
+                    aria-hidden="true"
+                    className="h-8 w-8 shrink-0 rounded-full border bg-white object-contain p-0.5"
+                    style={{ borderColor: CADENAS[cadena].color }}
+                  />
+                ) : (
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                    style={{ backgroundColor: CADENAS[cadena].color }}
+                    aria-hidden="true"
+                  >
+                    {CADENAS[cadena].nombre.charAt(0)}
+                  </span>
+                )}
                 <span className="flex-1 truncate text-sm font-medium text-ink">{CADENAS[cadena].nombre}</span>
                 <span className="text-xs text-muted">más cercana a {Math.round(info.masCercana)} m</span>
                 <span className="text-sm font-semibold text-ink">{info.cantidad}</span>

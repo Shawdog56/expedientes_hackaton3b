@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { DecisionFinal } from '../../../shared/types/expediente';
 import type { ExpedienteAnalisis } from '../../../shared/useSimulatedAnalysis';
 import type { EstadoDecision } from '../useDecisionFinal';
-import { DictamenChip } from './DictamenBanner';
+import { DictamenChip } from './DictamenChip';
 
 interface Props {
   analisis: ExpedienteAnalisis;
