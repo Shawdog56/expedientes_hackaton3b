@@ -29,7 +29,7 @@ export function PanelExpedienteList({ expedientes, onQuitar, onAnalizar }: Props
           {REGLAS_VALIDACION.map((tipo, indice) => (
             <motion.div
               key={tipo.id}
-              initial={reducido ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              initial={reducido ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, delay: indice * 0.06 }}
               className="flex items-start gap-3 rounded-[12px] border border-border bg-surface p-4"

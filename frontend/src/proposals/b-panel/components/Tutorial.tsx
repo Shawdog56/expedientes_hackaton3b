@@ -125,13 +125,17 @@ export function Tutorial({ activo, contexto, onTerminar }: Props) {
     elements: { reference: elementoObjetivo ?? undefined },
   });
 
-  // Reinicia al primer paso cada vez que el tutorial se activa de nuevo
-  // (ajustado durante el render, siguiendo el patrón de React para esto).
-  const [activoPrevio, setActivoPrevio] = useState(false);
-  if (activo !== activoPrevio) {
-    setActivoPrevio(activo);
-    if (activo) setIndice(0);
-  }
+  // Guarda la posición de scroll al montar y la restaura al desmontar (al
+  // terminar, al omitir, o si el componente se destruye a mitad del
+  // recorrido): algunos pasos desplazan la página para revisar objetivos más
+  // altos que la ventana, y sin esto la restauración del estado real podría
+  // quedar fuera de vista aunque esté correctamente montada.
+  useEffect(() => {
+    const scrollPrevio = window.scrollY;
+    return () => {
+      window.scrollTo({ top: scrollPrevio, behavior: 'auto' });
+    };
+  }, []);
 
   // Al entrar a un paso: ejecuta su acción y localiza (con reintentos, porque
   // la vista puede tardar unos ms en montarse) el elemento a resaltar. Los

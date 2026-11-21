@@ -1,12 +1,14 @@
-import { divIcon, type Circle as LeafletCircle, type DivIcon } from 'leaflet';
-import { House } from 'lucide-react';
+import { divIcon, latLngBounds, type Circle as LeafletCircle, type DivIcon } from 'leaflet';
+import { Check, House } from 'lucide-react';
 import { Loader2, MapPin } from 'lucide-react';
+import { motion, type Variants } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import { distanciaHaversineMetros } from '../../../shared/geo';
 import { TESELAS_OSM, TESELAS_PRINCIPALES } from '../../../shared/mapTiles';
 import { CADENAS, LOGOS_CADENA, TIENDAS_EJEMPLO, type Cadena, type TiendaCompetencia } from '../../../shared/mockCompetencia';
+import { useAnimaciones } from '../../../shared/motion';
 import { UBICACION_EJEMPLO } from '../../../shared/mockResults';
 import '../../../styles/mapPins.css';
 
@@ -21,6 +23,8 @@ const OPCIONES_RADIO: { valor: RadioKm; etiqueta: string }[] = [
 const LIMITE_ERRORES_TESELA = 3;
 const TIEMPO_LIMITE_CARGA_MS = 8000;
 const ZOOM_PINES_PEQUENOS = 13;
+const ZOOM_MAXIMO_AJUSTE = 16;
+const PADDING_AJUSTE_PX = 32;
 const VELOCIDAD_CAMINATA_M_POR_MIN = 80;
 
 const ICONO_CASA_SVG = renderToStaticMarkup(<House color="#FFFFFF" size={18} strokeWidth={2.5} />);
@@ -88,18 +92,29 @@ interface RadiusCircleProps {
   centro: [number, number];
   radioMetros: number;
   color: string;
+  tiendasVisibles: TiendaCompetencia[];
 }
 
-/** Dibuja el círculo del radio y ajusta la vista para que quepa completo. */
-function RadiusCircle({ centro, radioMetros, color }: RadiusCircleProps) {
+/**
+ * Dibuja el círculo del radio y ajusta la vista para incluir el inmueble y
+ * las tiendas visibles (filtro aplicado o no); si no hay ninguna visible,
+ * ajusta al círculo completo.
+ */
+function RadiusCircle({ centro, radioMetros, color, tiendasVisibles }: RadiusCircleProps) {
   const map = useMap();
   const circuloRef = useRef<LeafletCircle>(null);
 
   useEffect(() => {
     const circulo = circuloRef.current;
     if (!circulo) return;
-    map.fitBounds(circulo.getBounds(), { padding: [24, 24] });
-  }, [map, radioMetros, centro]);
+
+    if (tiendasVisibles.length > 0) {
+      const puntos: [number, number][] = [centro, ...tiendasVisibles.map((t): [number, number] => [t.lat, t.lng])];
+      map.fitBounds(latLngBounds(puntos), { padding: [PADDING_AJUSTE_PX, PADDING_AJUSTE_PX], maxZoom: ZOOM_MAXIMO_AJUSTE });
+    } else {
+      map.fitBounds(circulo.getBounds(), { padding: [PADDING_AJUSTE_PX, PADDING_AJUSTE_PX], maxZoom: ZOOM_MAXIMO_AJUSTE });
+    }
+  }, [map, radioMetros, centro, tiendasVisibles]);
 
   return (
     <Circle
@@ -149,8 +164,87 @@ function TiendaMarkers({ tiendas }: TiendaMarkersProps) {
   );
 }
 
+const VARIANTES_CONTENIDO_FILA_CADENA: Variants = {
+  reposo: { x: 0 },
+  hover: { x: 2 },
+};
+
+interface FilaCadenaProps {
+  cadena: Cadena;
+  cantidad: number;
+  masCercana: number;
+  seleccionada: boolean;
+  atenuada: boolean;
+  onClick: () => void;
+}
+
+/** Fila de cadena en la lista: pulsarla filtra el mapa a solo esa cadena. */
+function FilaCadena({ cadena, cantidad, masCercana, seleccionada, atenuada, onClick }: FilaCadenaProps) {
+  const { reducido } = useAnimaciones();
+  const info = CADENAS[cadena];
+  const logo = LOGOS_CADENA[cadena];
+
+  const variantesFila: Variants = {
+    reposo: { backgroundColor: seleccionada ? '#F5F5F5' : 'rgba(0,0,0,0)' },
+    hover: { backgroundColor: '#F5F5F5' },
+  };
+
+  return (
+    <li>
+      <motion.button
+        type="button"
+        onClick={onClick}
+        aria-pressed={seleccionada}
+        aria-label={`Mostrar solo ${info.nombre} en el mapa`}
+        initial="reposo"
+        animate={seleccionada ? 'hover' : 'reposo'}
+        whileHover="hover"
+        whileFocus="hover"
+        whileTap={reducido ? undefined : { scale: 0.99 }}
+        variants={variantesFila}
+        transition={{ duration: 0.15 }}
+        className={`flex w-full items-center gap-3 px-4 py-3 text-left outline-none transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${
+          atenuada ? 'opacity-[0.55]' : 'opacity-100'
+        }`}
+      >
+        <motion.span
+          className="flex flex-1 items-center gap-3"
+          variants={reducido ? undefined : VARIANTES_CONTENIDO_FILA_CADENA}
+        >
+          {logo ? (
+            <img
+              src={logo}
+              alt=""
+              aria-hidden="true"
+              className="h-8 w-8 shrink-0 rounded-full border bg-white object-contain p-0.5"
+              style={{ borderColor: info.color }}
+            />
+          ) : (
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+              style={{ backgroundColor: info.color }}
+              aria-hidden="true"
+            >
+              {info.nombre.charAt(0)}
+            </span>
+          )}
+          <span className={`flex-1 truncate text-sm text-ink ${seleccionada ? 'font-bold' : 'font-medium'}`}>
+            {info.nombre}
+          </span>
+          <span className="text-xs text-muted">más cercana a {Math.round(masCercana)} m</span>
+          <span className="flex items-center gap-1 text-sm font-semibold text-ink">
+            {seleccionada && <Check className="h-4 w-4 text-ok" aria-hidden="true" />}
+            {cantidad}
+          </span>
+        </motion.span>
+      </motion.button>
+    </li>
+  );
+}
+
 export function CompetitionTab() {
   const [radioKm, setRadioKm] = useState<RadioKm>(1);
+  const [cadenaFiltrada, setCadenaFiltrada] = useState<Cadena | null>(null);
   const [intento, setIntento] = useState(0);
   const [usarRespaldo, setUsarRespaldo] = useState(false);
   const [cargado, setCargado] = useState(false);
@@ -171,7 +265,17 @@ export function CompetitionTab() {
   );
 
   const radioMetros = radioKm * 1000;
-  const tiendasEnRadio = tiendasConDistancia.filter((tienda) => tienda.distancia <= radioMetros);
+  // Memorizados: `RadiusCircle` dispara `fitBounds` cuando cambia esta
+  // referencia, y CompetitionTab re-renderiza seguido (carga de teselas,
+  // zoom de los pines) sin que el conjunto visible realmente cambie.
+  const tiendasEnRadio = useMemo(
+    () => tiendasConDistancia.filter((tienda) => tienda.distancia <= radioMetros),
+    [tiendasConDistancia, radioMetros],
+  );
+  const tiendasVisibles = useMemo(
+    () => (cadenaFiltrada ? tiendasEnRadio.filter((tienda) => tienda.cadena === cadenaFiltrada) : tiendasEnRadio),
+    [tiendasEnRadio, cadenaFiltrada],
+  );
 
   const porCadena = useMemo(() => {
     const mapa = new Map<Cadena, { cantidad: number; masCercana: number }>();
@@ -186,10 +290,30 @@ export function CompetitionTab() {
         });
       }
     }
+    // La cadena filtrada no desaparece de la lista aunque este radio no
+    // tenga ninguna: se queda con cantidad 0 para explicar por qué el mapa
+    // está vacío, en vez de que su fila se esfume sin razón visible.
+    if (cadenaFiltrada && !mapa.has(cadenaFiltrada)) {
+      const todasDeLaCadena = tiendasConDistancia.filter((tienda) => tienda.cadena === cadenaFiltrada);
+      if (todasDeLaCadena.length > 0) {
+        mapa.set(cadenaFiltrada, {
+          cantidad: 0,
+          masCercana: Math.min(...todasDeLaCadena.map((tienda) => tienda.distancia)),
+        });
+      }
+    }
     return Array.from(mapa.entries()).sort((a, b) => a[1].masCercana - b[1].masCercana);
-  }, [tiendasEnRadio]);
+  }, [tiendasEnRadio, cadenaFiltrada, tiendasConDistancia]);
 
   const etiquetaRadio = OPCIONES_RADIO.find((opcion) => opcion.valor === radioKm)?.etiqueta ?? '';
+  const nombreCadenaFiltrada = cadenaFiltrada ? CADENAS[cadenaFiltrada].nombre : null;
+  const cantidadFiltrada = cadenaFiltrada
+    ? porCadena.find(([cadena]) => cadena === cadenaFiltrada)?.[1].cantidad ?? 0
+    : tiendasEnRadio.length;
+
+  const alternarFiltro = (cadena: Cadena) => {
+    setCadenaFiltrada((actual) => (actual === cadena ? null : cadena));
+  };
 
   useEffect(() => {
     if (cargado) return;
@@ -276,9 +400,9 @@ export function CompetitionTab() {
             }}
           />
 
-          <RadiusCircle centro={centro} radioMetros={radioMetros} color={colorBrand} />
+          <RadiusCircle centro={centro} radioMetros={radioMetros} color={colorBrand} tiendasVisibles={tiendasVisibles} />
 
-          <TiendaMarkers tiendas={tiendasEnRadio} />
+          <TiendaMarkers tiendas={tiendasVisibles} />
 
           <Marker position={centro} icon={crearIconoInmueble(direccion, colorBrand)} zIndexOffset={1000}>
             <Popup>{direccion}</Popup>
@@ -311,38 +435,50 @@ export function CompetitionTab() {
       </div>
 
       <div className="rounded-xl border border-border bg-surface shadow-sm">
-        <p className="border-b border-border px-4 py-3 text-sm font-semibold text-ink">
-          {tiendasEnRadio.length} tienda{tiendasEnRadio.length === 1 ? '' : 's'} de autoservicio a {etiquetaRadio}
-        </p>
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <p className="text-sm font-semibold text-ink">
+            {cantidadFiltrada} tienda{cantidadFiltrada === 1 ? '' : 's'} {cadenaFiltrada ? nombreCadenaFiltrada : 'de autoservicio'} a {etiquetaRadio}
+          </p>
+          {cadenaFiltrada && (
+            <button
+              type="button"
+              onClick={() => setCadenaFiltrada(null)}
+              className="shrink-0 text-xs font-medium text-brand underline underline-offset-2 hover:no-underline"
+            >
+              Mostrar todas
+            </button>
+          )}
+        </div>
         {porCadena.length === 0 ? (
           <p className="px-4 py-3 text-sm text-muted">No hay tiendas registradas dentro de este radio.</p>
         ) : (
           <ul className="divide-y divide-border">
             {porCadena.map(([cadena, info]) => (
-              <li key={cadena} className="flex items-center gap-3 px-4 py-3">
-                {LOGOS_CADENA[cadena] ? (
-                  <img
-                    src={LOGOS_CADENA[cadena]}
-                    alt=""
-                    aria-hidden="true"
-                    className="h-8 w-8 shrink-0 rounded-full border bg-white object-contain p-0.5"
-                    style={{ borderColor: CADENAS[cadena].color }}
-                  />
-                ) : (
-                  <span
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-                    style={{ backgroundColor: CADENAS[cadena].color }}
-                    aria-hidden="true"
-                  >
-                    {CADENAS[cadena].nombre.charAt(0)}
-                  </span>
-                )}
-                <span className="flex-1 truncate text-sm font-medium text-ink">{CADENAS[cadena].nombre}</span>
-                <span className="text-xs text-muted">más cercana a {Math.round(info.masCercana)} m</span>
-                <span className="text-sm font-semibold text-ink">{info.cantidad}</span>
-              </li>
+              <FilaCadena
+                key={cadena}
+                cadena={cadena}
+                cantidad={info.cantidad}
+                masCercana={info.masCercana}
+                seleccionada={cadenaFiltrada === cadena}
+                atenuada={cadenaFiltrada !== null && cadenaFiltrada !== cadena}
+                onClick={() => alternarFiltro(cadena)}
+              />
             ))}
           </ul>
+        )}
+        {cadenaFiltrada && cantidadFiltrada === 0 && (
+          <p className="flex items-center justify-between gap-2 border-t border-border px-4 py-3 text-sm text-muted">
+            <span>
+              No hay tiendas {nombreCadenaFiltrada} a {etiquetaRadio}.
+            </span>
+            <button
+              type="button"
+              onClick={() => setCadenaFiltrada(null)}
+              className="shrink-0 text-xs font-medium text-brand underline underline-offset-2 hover:no-underline"
+            >
+              Mostrar todas
+            </button>
+          </p>
         )}
       </div>
 
