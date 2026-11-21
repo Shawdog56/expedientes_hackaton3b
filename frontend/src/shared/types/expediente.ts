@@ -1,4 +1,4 @@
-export type OrigenExpediente = 'carpeta' | 'zip';
+export type OrigenExpediente = 'carpeta' | 'zip' | 'archivos';
 
 export interface ArchivoExpediente {
   nombre: string;

@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, File as FileIcon, FileArchive, Folder, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { TIPOS_DOCUMENTALES, type Expediente } from '../types/expediente';
-import { formatBytes } from '../utils/formatBytes';
+import { TIPOS_DOCUMENTALES, type Expediente } from '../../shared/types/expediente';
+import { formatBytes } from '../../shared/utils/formatBytes';
 
 interface Props {
   expediente: Expediente;
