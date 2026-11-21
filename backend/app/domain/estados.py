@@ -11,6 +11,13 @@ class EstadoExpediente(StrEnum):
     ERROR = "error"
 
 
+class DecisionFinal(StrEnum):
+    """Decisión de la persona que revisa el expediente, al final del flujo."""
+
+    ACEPTADO = "aceptado"
+    RECHAZADO = "rechazado"
+
+
 class EstadoExtraccion(StrEnum):
     PENDIENTE = "pendiente"
     EN_PROCESO = "en_proceso"

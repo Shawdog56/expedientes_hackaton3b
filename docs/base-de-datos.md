@@ -1,8 +1,9 @@
 # Base de datos
 
 PostgreSQL 17 (servicio `db` en docker-compose), SQLAlchemy 2 y migraciones con Alembic.
-Los PDF **no** se guardan en la BD: viven en el volumen `expedientes_data`
-(`/data/expedientes/<expediente_id>/documentos/...`); la BD guarda metadatos, clasificación y resultados.
+Los PDF y las imágenes **no** se guardan en la BD: viven **cifrados** en el volumen `expedientes_data`
+(`/data/expedientes/<expediente_id>/documentos/<id>.enc`, con nombre aleatorio); la BD guarda metadatos,
+clasificación y resultados. El nombre y la ruta originales también van cifrados en la BD (ver [seguridad.md](seguridad.md)).
 
 Modelos: [`backend/app/db/models.py`](../backend/app/db/models.py)
 
@@ -29,13 +30,16 @@ erDiagram
         string estado "cargado | en_extraccion | en_validacion | verificado | error"
         timestamptz creado_en
         timestamptz actualizado_en
+        string decision_final "aceptado | rechazado | null (la marca la persona que revisa)"
+        timestamptz decidido_en
+        string decidido_por "entidad del token; null sin autenticación"
     }
     documentos {
         uuid id PK
         uuid expediente_id FK
         string nombre
         string ruta "relativa al expediente"
-        string ruta_almacenamiento "ruta en el volumen"
+        string ruta_almacenamiento "archivo cifrado en el volumen, nombre aleatorio"
         bigint tamano
         int paginas
         string sha256
@@ -92,7 +96,7 @@ erDiagram
 ## Siguiente paso (agentes)
 
 1. `documentos_para_agentes(db, expediente_id)` (en `app/services/expedientes.py`) ya agrupa por agente los documentos `pendiente`.
-2. Cada agente especialista crea una `Extraccion` (`en_proceso`), procesa `ruta_almacenamiento` y la cierra con `caracteristicas` o `error`; actualiza `documentos.estado_extraccion`.
+2. Cada agente especialista crea una `Extraccion` (`en_proceso`), procesa una copia en claro del archivo (la ruta sale de `documento_en_claro(documento)`, porque `ruta_almacenamiento` apunta al archivo cifrado) y la cierra con `caracteristicas` o `error`; actualiza `documentos.estado_extraccion`.
 3. Cuando no queden documentos `pendiente`/`en_proceso`, el expediente pasa a `en_validacion` y el orquestador lee las extracciones vigentes, escribe `validaciones_cruzadas` + `hallazgos` y deja el expediente en `verificado`.
 
 ## Migraciones

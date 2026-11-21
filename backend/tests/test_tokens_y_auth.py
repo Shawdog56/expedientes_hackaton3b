@@ -170,3 +170,19 @@ def test_mala_configuracion_responde_503(client, monkeypatch, hospital):
     monkeypatch.setattr(settings, "auth_claves_emisores_dir", None)
     token = _emitir(hospital)
     assert client.get("/api/expedientes", headers={"Authorization": f"Bearer {token}"}).status_code == 503
+
+
+def test_la_decision_final_registra_la_entidad_que_decide(client, auth_activa, hospital):
+    from tests.test_expedientes import pdf_bytes
+
+    cabecera = {"Authorization": f"Bearer {_emitir(hospital)}"}
+    creado = client.post(
+        "/api/expedientes",
+        files=[("archivos", ("escritura.pdf", pdf_bytes(), "application/pdf"))],
+        headers=cabecera,
+    )
+    assert creado.status_code == 201
+    url = f"/api/expedientes/{creado.json()['id']}/decision"
+    assert client.put(url, json={"decision": "aceptado"}).status_code == 401
+    r = client.put(url, json={"decision": "aceptado"}, headers=cabecera)
+    assert r.status_code == 200 and r.json()["decidido_por"] == "hospital"

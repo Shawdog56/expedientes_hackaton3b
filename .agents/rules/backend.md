@@ -38,6 +38,10 @@ Cada capa solo puede importar las que aparecen a su derecha. Lo comprueba
 - Los documentos pendientes de un expediente, agrupados por agente, salen de
   `services.expedientes.documentos_para_agentes(db, id)`; lo llama el servicio de
   extracción, nunca el agente.
+- Los archivos del volumen están **cifrados**: `Documento.ruta_almacenamiento` apunta al
+  archivo cifrado, no se puede leer directo. El servicio de extracción abre cada documento con
+  `services.expedientes.documento_en_claro(documento)` (copia temporal que se borra al salir) y
+  pasa esa ruta al agente en `SolicitudExtraccion.ruta_archivo`. El agente no toca las claves.
 
 ## Datos y configuración
 

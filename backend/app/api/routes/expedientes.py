@@ -1,19 +1,27 @@
 import uuid
+from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.api.seguridad import requiere_entidad
+from app.core.seguridad.errores import ConfiguracionSeguridadError, DescifradoError
 from app.db.models import Expediente
 from app.db.session import get_db
 from app.schemas.expedientes import (
+    DecisionIn,
     ExpedienteOut,
     ReclasificarDocumento,
     TipoDocumentalOut,
 )
-from app.domain.documentos import AGENTE_POR_TIPO, ETIQUETAS, TipoDocumental
+from app.domain.documentos import AGENTE_POR_TIPO, ETIQUETAS, MEDIA_TYPE_POR_FORMATO, TipoDocumental
 from app.services import expedientes as svc
 
 router = APIRouter(tags=["expedientes"])
+
+SIN_CLAVES = "El servidor no tiene configuradas las claves de cifrado (ver docs/seguridad.md)"
 
 
 @router.get("/tipos-documentales", response_model=list[TipoDocumentalOut])
@@ -54,6 +62,8 @@ def subir_expediente(
         raise HTTPException(
             422, {"mensaje": "No se encontró ningún documento válido", "rechazados": e.rechazados}
         ) from None
+    except ConfiguracionSeguridadError:
+        raise HTTPException(503, SIN_CLAVES) from None
 
 
 @router.get("/expedientes", response_model=list[ExpedienteOut])
@@ -86,3 +96,45 @@ def reclasificar_documento(
         return svc.reclasificar_documento(db, documento_id, body.tipo_documental)
     except LookupError:
         raise HTTPException(404, "Documento no encontrado") from None
+
+
+@router.get("/documentos/{documento_id}/archivo")
+def ver_archivo(documento_id: uuid.UUID, db: Session = Depends(get_db)) -> StreamingResponse:
+    """Devuelve el archivo original para verlo en el navegador (PDF, JPG o PNG).
+
+    El tipo de contenido sale del formato validado al subirlo, nunca del nombre del archivo.
+    """
+    try:
+        documento, contenido = svc.contenido_de_documento(db, documento_id)
+    except LookupError:
+        raise HTTPException(404, "Documento no encontrado") from None
+    except DescifradoError:
+        raise HTTPException(500, "No se pudo leer el archivo: está alterado o falta su clave") from None
+    except ConfiguracionSeguridadError:
+        raise HTTPException(503, SIN_CLAVES) from None
+    return StreamingResponse(
+        contenido,
+        media_type=MEDIA_TYPE_POR_FORMATO[documento.formato],
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{quote(documento.nombre)}",
+            "Content-Length": str(documento.tamano),
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.put("/expedientes/{expediente_id}/decision", response_model=ExpedienteOut)
+def decidir_expediente(
+    expediente_id: uuid.UUID,
+    body: DecisionIn,
+    db: Session = Depends(get_db),
+    entidad: dict[str, Any] | None = Depends(requiere_entidad),
+) -> Expediente:
+    """Marca la decisión final (aceptado o rechazado) de la persona que revisa el expediente."""
+    try:
+        return svc.decidir_expediente(
+            db, expediente_id, body.decision, entidad["sub"] if entidad else None
+        )
+    except LookupError:
+        raise HTTPException(404, "Expediente no encontrado") from None

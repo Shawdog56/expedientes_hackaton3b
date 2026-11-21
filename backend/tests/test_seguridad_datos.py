@@ -103,11 +103,6 @@ def test_sin_claves_configuradas_falla_con_mensaje_claro(monkeypatch, db_session
     with db_session() as db:
         exp = Expediente(nombre="e", origen="zip")
         db.add(exp)
-        db.flush()
-        v = ValidacionCruzada(
-            expediente_id=exp.id, resultado=ResultadoValidacion.CUMPLE, resumen="Juan"
-        )
-        db.add(v)
         with pytest.raises(Exception, match="CLAVES_CIFRADO"):
             db.flush()
 

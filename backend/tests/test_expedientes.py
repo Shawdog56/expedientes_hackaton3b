@@ -85,11 +85,11 @@ def test_carpeta_con_pdfs_validos_e_invalidos(subir, client, storage_temporal):
     assert "contraseña" in motivos["Exp1/protegido.pdf"]
     assert "no permitido" in motivos["Exp1/foto.gif"]
 
+    # En disco solo hay archivos cifrados con nombre aleatorio: ningún nombre original sobrevive.
     docs = dir_documentos(storage_temporal, body["id"])
-    assert sorted(p.name for p in docs.rglob("*") if p.is_file()) == [
-        "01 Escritura.pdf",
-        "PAGO PREDIAL 2025.pdf",
-    ]
+    en_disco = sorted(p.name for p in docs.rglob("*") if p.is_file())
+    assert len(en_disco) == 2 and all(n.endswith(".enc") for n in en_disco)
+    assert not any(p.is_dir() for p in docs.rglob("*"))
     recuperado = client.get(f"/api/expedientes/{body['id']}").json()
     # SQLite (pruebas) no conserva la zona horaria; en PostgreSQL sí.
     assert {**recuperado, "creado_en": None} == {**body, "creado_en": None}

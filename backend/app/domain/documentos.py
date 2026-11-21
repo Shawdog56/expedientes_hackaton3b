@@ -18,6 +18,13 @@ class FormatoArchivo(StrEnum):
     PNG = "png"
 
 
+MEDIA_TYPE_POR_FORMATO: dict[FormatoArchivo, str] = {
+    FormatoArchivo.PDF: "application/pdf",
+    FormatoArchivo.JPEG: "image/jpeg",
+    FormatoArchivo.PNG: "image/png",
+}
+
+
 class EstadoClasificacion(StrEnum):
     CLASIFICADO = "clasificado"
     SIN_CLASIFICAR = "sin_clasificar"

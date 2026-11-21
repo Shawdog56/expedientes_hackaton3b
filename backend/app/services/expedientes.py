@@ -1,11 +1,19 @@
 """Carga de expedientes: validación de archivos, clasificación por tipo documental y persistencia.
 
-Los documentos (PDF, JPG y PNG) viven en STORAGE_DIR/<expediente_id>/documentos/...; los metadatos en PostgreSQL.
+Los documentos (PDF, JPG y PNG) se guardan **cifrados** en STORAGE_DIR/<expediente_id>/documentos/<id>.enc,
+con un nombre aleatorio: ni el nombre ni la ruta original aparecen en el disco. Los metadatos van en
+PostgreSQL (el nombre y la ruta, también cifrados). Los archivos se validan en un directorio temporal
+fuera del volumen, que se borra al terminar. Quien necesite leer un documento (visor, agentes) lo pide
+descifrado con `documento_en_claro` o `contenido_de_documento`.
 """
 
 import hashlib
+import itertools
 import shutil
+import tempfile
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
@@ -14,9 +22,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
-from app.db.models import ArchivoRechazado, Documento, Expediente
+from app.core.seguridad.archivos import (
+    EXTENSION,
+    cifrar_archivo,
+    descifrar_a_archivo,
+    descifrar_flujo,
+    esta_cifrado,
+)
+from app.core.seguridad.proveedor import obtener_cifrador
+from app.db.models import ArchivoRechazado, Documento, Expediente, ahora
 from app.domain.documentos import EstadoClasificacion, TipoDocumental
-from app.domain.estados import EstadoExtraccion
+from app.domain.estados import DecisionFinal, EstadoExtraccion
 from app.services.clasificacion import clasificar
 from app.services.validacion import (
     ArchivoRechazado as Rechazo,
@@ -87,52 +103,55 @@ def _nombre_por_defecto(archivos: list[ArchivoSubido]) -> str:
 
 def crear_expediente(db: Session, nombre: str | None, archivos: list[ArchivoSubido]) -> Expediente:
     """Valida, clasifica y registra el expediente. Lanza SinDocumentosValidos si no queda ningún documento."""
+    obtener_cifrador()  # sin claves de cifrado no se guarda nada: falla antes de tocar el disco
+
     expediente_id = uuid.uuid4()
     base = settings.storage_dir / expediente_id.hex
-    documentos_dir = base / DIR_DOCUMENTOS
+    destino_dir = base / DIR_DOCUMENTOS
 
     try:
-        resultados, hay_zip = _validar_archivos(archivos, base)
-    except Exception:
-        shutil.rmtree(base, ignore_errors=True)
-        raise
+        with tempfile.TemporaryDirectory(prefix="exp-") as temporal:
+            # Los archivos en claro solo existen aquí; al salir del bloque se borran.
+            staging = Path(temporal)
+            resultados, hay_zip = _validar_archivos(archivos, staging)
 
-    aceptados = [r for r in resultados if r.aceptado and r.destino]
-    rechazados = [{"ruta": r.ruta, "motivo": r.motivo or ""} for r in resultados if not r.aceptado]
+            aceptados = [r for r in resultados if r.aceptado and r.destino]
+            rechazados = [{"ruta": r.ruta, "motivo": r.motivo or ""} for r in resultados if not r.aceptado]
+            if not aceptados:
+                raise SinDocumentosValidos(rechazados)
 
-    if not aceptados:
-        shutil.rmtree(base, ignore_errors=True)
-        raise SinDocumentosValidos(rechazados)
-
-    expediente = Expediente(
-        id=expediente_id,
-        nombre=(nombre or _nombre_por_defecto(archivos)).strip()[:255],
-        origen="zip" if hay_zip else "carpeta",
-    )
-    for r in aceptados:
-        assert r.destino is not None
-        ruta = r.destino.relative_to(documentos_dir).as_posix()
-        clasificacion = clasificar(ruta)
-        expediente.documentos.append(
-            Documento(
-                nombre=r.destino.name,
-                ruta=ruta,
-                ruta_almacenamiento=str(r.destino),
-                tamano=r.tamano,
-                paginas=r.paginas,
-                formato=r.formato,
-                sha256=_sha256(r.destino),
-                tipo_documental=clasificacion.tipo,
-                estado_clasificacion=clasificacion.estado,
-                fuente_clasificacion=clasificacion.fuente,
-                estado_extraccion=(
-                    EstadoExtraccion.PENDIENTE if clasificacion.tipo else EstadoExtraccion.NO_APLICA
-                ),
+            expediente = Expediente(
+                id=expediente_id,
+                nombre=(nombre or _nombre_por_defecto(archivos)).strip()[:255],
+                origen="zip" if hay_zip else "carpeta",
             )
-        )
-    expediente.rechazados = [ArchivoRechazado(**r) for r in rechazados]
+            for r in aceptados:
+                assert r.destino is not None
+                ruta = r.destino.relative_to(staging / DIR_DOCUMENTOS).as_posix()
+                clasificacion = clasificar(ruta)
+                documento_id = uuid.uuid4()
+                cifrado = destino_dir / f"{documento_id.hex}{EXTENSION}"
+                cifrar_archivo(r.destino, cifrado, contexto_archivo(documento_id))
+                expediente.documentos.append(
+                    Documento(
+                        id=documento_id,
+                        nombre=r.destino.name,
+                        ruta=ruta,
+                        ruta_almacenamiento=str(cifrado),
+                        tamano=r.tamano,
+                        paginas=r.paginas,
+                        formato=r.formato,
+                        sha256=_sha256(r.destino),
+                        tipo_documental=clasificacion.tipo,
+                        estado_clasificacion=clasificacion.estado,
+                        fuente_clasificacion=clasificacion.fuente,
+                        estado_extraccion=(
+                            EstadoExtraccion.PENDIENTE if clasificacion.tipo else EstadoExtraccion.NO_APLICA
+                        ),
+                    )
+                )
+            expediente.rechazados = [ArchivoRechazado(**r) for r in rechazados]
 
-    try:
         db.add(expediente)
         db.commit()
     except Exception:
@@ -140,6 +159,49 @@ def crear_expediente(db: Session, nombre: str | None, archivos: list[ArchivoSubi
         shutil.rmtree(base, ignore_errors=True)
         raise
     return obtener_expediente(db, expediente_id)
+
+
+def contexto_archivo(documento_id: uuid.UUID) -> str:
+    """Contexto de cifrado del archivo: liga el contenido a su documento."""
+    return f"documentos.archivo:{documento_id}"
+
+
+@contextmanager
+def documento_en_claro(documento: Documento) -> Iterator[Path]:
+    """Entrega la ruta de una copia en claro del documento, que se borra al salir del bloque.
+
+    Es la forma de leer un documento desde los agentes de extracción: ellos reciben una ruta, como
+    siempre, y no tocan las claves. Los archivos anteriores al cifrado se entregan tal cual.
+    """
+    origen = Path(documento.ruta_almacenamiento)
+    if not esta_cifrado(origen):
+        yield origen
+        return
+    with tempfile.TemporaryDirectory(prefix="doc-") as temporal:
+        copia = Path(temporal) / f"documento.{documento.formato.value}"
+        descifrar_a_archivo(origen, copia, contexto_archivo(documento.id))
+        yield copia
+
+
+def _leer_en_claro(ruta: Path) -> Iterator[bytes]:
+    with open(ruta, "rb") as f:
+        while bloque := f.read(1024 * 1024):
+            yield bloque
+
+
+def contenido_de_documento(db: Session, documento_id: uuid.UUID) -> tuple[Documento, Iterator[bytes]]:
+    """Contenido en claro del documento por bloques, para el visor. No se vuelca entero a memoria.
+
+    Lanza LookupError si el documento o su archivo no existen y DescifradoError si el archivo está alterado.
+    """
+    ruta, documento = archivo_de_documento(db, documento_id)
+    if esta_cifrado(ruta):
+        flujo = descifrar_flujo(ruta, contexto_archivo(documento.id))
+    else:  # archivos anteriores al cifrado
+        flujo = _leer_en_claro(ruta)
+    # Se lee el primer bloque ya, para detectar un archivo alterado antes de responder.
+    primero = next(flujo, b"")
+    return documento, itertools.chain([primero], flujo)
 
 
 def _consulta_expediente():
@@ -184,6 +246,29 @@ def reclasificar_documento(
         documento.estado_extraccion = EstadoExtraccion.PENDIENTE
     db.commit()
     return obtener_expediente(db, documento.expediente_id)
+
+
+def archivo_de_documento(db: Session, documento_id: uuid.UUID) -> tuple[Path, Documento]:
+    """Ruta en disco del documento para visualizarlo. Solo sirve archivos dentro del volumen de expedientes."""
+    documento = db.get(Documento, documento_id)
+    if documento is None:
+        raise LookupError(documento_id)
+    ruta = Path(documento.ruta_almacenamiento).resolve()
+    if not ruta.is_relative_to(settings.storage_dir.resolve()) or not ruta.is_file():
+        raise LookupError(documento_id)
+    return ruta, documento
+
+
+def decidir_expediente(
+    db: Session, expediente_id: uuid.UUID, decision: DecisionFinal, por: str | None
+) -> Expediente:
+    """Registra la decisión final de la persona que revisa. La última decisión reemplaza a la anterior."""
+    expediente = obtener_expediente(db, expediente_id)
+    expediente.decision_final = decision
+    expediente.decidido_en = ahora()
+    expediente.decidido_por = por
+    db.commit()
+    return obtener_expediente(db, expediente_id)
 
 
 def documentos_para_agentes(db: Session, expediente_id: uuid.UUID) -> dict[str, list[Documento]]:

@@ -12,7 +12,8 @@ Cómo se protegen los datos sensibles de los expedientes: en la base de datos, e
 | Identidad entre entidades | **JWT firmado con RSA (RS256)** | `tokens.py`, `api/seguridad.py` |
 | Contenido del token, si debe ir confidencial | **JWE** (RSA-OAEP-256 + A256GCM), firmado primero y cifrado después | `tokens.py` |
 | Tránsito | **TLS 1.3**, y mTLS entre entidades | despliegue (ver más abajo) |
-| Archivos del expediente (PDF, JPG, PNG) | cifrado del volumen o del disco | despliegue |
+| Archivos del expediente (PDF, JPG, PNG) | **AES-256-GCM por bloques**, un archivo cifrado con nombre aleatorio | `archivos.py`, `services/expedientes.py` |
+| Disco o volumen completo | cifrado de disco (BitLocker, LUKS o el de la nube) | despliegue |
 
 Un JWT firmado **no cifra**: cualquiera puede leer su contenido. Por eso el token solo lleva identidad (`iss`, `sub`, `aud`, `exp`) y los datos sensibles se piden a la API por un canal TLS.
 
@@ -24,13 +25,36 @@ Un JWT firmado **no cifra**: cualquiera puede leer su contenido. Por eso el toke
 | `hallazgos` | `evidencia` | texto cifrado |
 | `hallazgos` | `mensaje` | texto cifrado |
 | `validaciones_cruzadas` | `resumen` | texto cifrado |
+| `expedientes` | `nombre` | texto cifrado |
+| `documentos` | `nombre` | texto cifrado |
+| `documentos` | `ruta` | texto cifrado |
+| `archivos_rechazados` | `ruta` | texto cifrado |
 
 En la base solo se ve `enc1.<clave>.<sobre>.<nonce>.<cifrado>`. El modelo SQLAlchemy cifra y descifra solo (`JSONCifrado` y `TextoCifrado`).
 
 - **Cifrado por sobre.** Cada valor usa una clave de datos aleatoria, que se guarda envuelta con la clave maestra activa. El identificador de la clave maestra viaja en el valor.
 - **Contexto.** El nombre de la columna se autentica junto con el dato: un valor copiado a otra columna no se puede descifrar.
 - **Consecuencia.** Ya no se puede consultar `caracteristicas` con operadores JSONB. Si hace falta buscar por un campo, guárdalo también como índice ciego (`indice_ciego(valor, "extracciones.folio")`) en una columna con `index=True` y busca por ese índice.
-- **No se cifran** `expedientes.nombre`, los nombres de archivo, las rutas ni el `sha256`: se usan para listar y deduplicar. No pongas datos personales en el nombre del expediente.
+- **Orden.** Como `documentos.ruta` está cifrada, la API ordena los documentos en Python, no con SQL.
+- **No se cifra** el `sha256` de cada documento: sirve para detectar el mismo archivo subido dos veces. Quien ya tenga un archivo puede comprobar si está en el sistema, pero no puede leer nada nuevo.
+
+## Archivos del expediente
+
+Los PDF e imágenes se guardan en `STORAGE_DIR/<expediente>/documentos/<id>.enc`, cifrados y con un nombre aleatorio: ni el nombre ni las carpetas originales aparecen en el disco.
+
+- **Formato.** AES-256-GCM por bloques de 1 MiB, así que un archivo de 50 MB nunca está entero en memoria. Cada archivo usa su propia clave de datos, envuelta con la clave maestra activa. Reordenar, quitar o cortar bloques, alterar un bit o copiar el archivo a otro documento hace que el descifrado falle.
+- **Al subir.** Los archivos se validan en un directorio temporal **fuera del volumen** (`/tmp` del contenedor), se cifran al volumen y el temporal se borra siempre, incluso si la carga falla. Sin claves configuradas la carga responde `503` y no deja nada en disco. Para que ese temporal no toque el disco, monta `/tmp` como `tmpfs` en el despliegue; cuesta memoria con zips grandes.
+- **Al leer.** El visor (`GET /api/documentos/{id}/archivo`) descifra por bloques sin escribir nada en disco. Si el archivo está alterado responde `500` en lugar de entregar datos.
+- **Para los agentes.** `documento_en_claro(documento)`, en `services/expedientes.py`, entrega una **ruta temporal** con una copia en claro que se borra al salir del bloque. El agente sigue recibiendo una ruta y su formato, y no toca las claves.
+- **Archivos anteriores al cifrado.** Se siguen leyendo, pero quedan en claro hasta que ejecutes:
+
+```powershell
+docker compose exec backend python scripts/cifrar_archivos_existentes.py
+```
+
+El script los cifra, actualiza la ruta, borra el original y las carpetas vacías. Se puede repetir sin riesgo.
+
+**Límites.** El archivo en claro existe en memoria o en el temporal mientras se valida, se visualiza o lo procesa un agente. Y si un agente envía el contenido a un proveedor de LLM externo, esa copia sale del sistema: el cifrado en reposo no la protege (ver el contrato con el proveedor).
 
 ## Claves
 

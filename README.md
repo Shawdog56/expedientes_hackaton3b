@@ -83,6 +83,13 @@ Cada documento se clasifica en uno de los 4 tipos documentales según su nombre,
 - `GET /api/tipos-documentales` lista los tipos con su agente.
 
 Otros endpoints: `GET /api/expedientes`, `GET /api/expedientes/{id}`, `DELETE /api/expedientes/{id}`.
+
+### 3. Visor de archivos y decisión final
+
+- `GET /api/documentos/{id}/archivo` devuelve el archivo original (PDF, JPG o PNG) para verlo en línea. El tipo de contenido sale del formato validado al subirlo y solo se sirven archivos del volumen de expedientes. En el panel B se abre en un visor lateral desde cada documento de la lista y desde cada tarjeta del análisis, y permite pasar de un archivo a otro del expediente.
+- `PUT /api/expedientes/{id}/decision` con `{"decision": "aceptado" | "rechazado"}` registra la decisión de la persona que revisa (`decision_final`, `decidido_en` y, con autenticación activa, `decidido_por`). La última decisión reemplaza a la anterior y no cambia `estado`, que lo mueven los agentes.
+- En la interfaz, la pestaña **Decisión final** se habilita solo después de abrir **Zona y competencia**. Si el dictamen del análisis no es "cumple", aceptar pide una confirmación.
+
 Para los agentes: `documentos_para_agentes(db, expediente_id)` agrupa por agente los documentos pendientes.
 
 ### Base de datos
@@ -91,7 +98,7 @@ Ver [docs/base-de-datos.md](docs/base-de-datos.md): diagrama, decisiones y cómo
 
 ### Seguridad
 
-Los datos sensibles de la base van cifrados (AES-256-GCM) y la API puede exigir tokens JWT firmados con RSA entre entidades. Antes de guardar extracciones hay que generar las claves: ver [docs/seguridad.md](docs/seguridad.md).
+Los archivos de los expedientes (en el volumen, con nombre aleatorio) y los datos sensibles de la base (nombres, rutas y resultados) van cifrados con AES-256-GCM, y la API puede exigir tokens JWT firmados con RSA entre entidades. **Sin claves de cifrado no se pueden subir expedientes**: genéralas antes de empezar, como explica [docs/seguridad.md](docs/seguridad.md). Si tienes archivos subidos antes del cifrado, ejecuta `docker compose exec backend python scripts/cifrar_archivos_existentes.py`.
 
 ```powershell
 docker compose run --rm --no-deps backend python scripts/generar_claves.py servidor

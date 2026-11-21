@@ -2,10 +2,10 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.domain.documentos import EstadoClasificacion, FormatoArchivo, TipoDocumental
-from app.domain.estados import EstadoExpediente, EstadoExtraccion
+from app.domain.estados import DecisionFinal, EstadoExpediente, EstadoExtraccion
 
 
 class DocumentoOut(BaseModel):
@@ -44,6 +44,19 @@ class ExpedienteOut(BaseModel):
     tipos_faltantes: list[TipoDocumental]
     tipos_duplicados: list[TipoDocumental]
     completo: bool
+    decision_final: DecisionFinal | None
+    decidido_en: datetime | None
+    decidido_por: str | None
+
+    @field_validator("documentos")
+    @classmethod
+    def _ordenar_documentos(cls, documentos: list[DocumentoOut]) -> list[DocumentoOut]:
+        # La ruta está cifrada en la base y no se puede ordenar con SQL: se ordena aquí.
+        return sorted(documentos, key=lambda doc: doc.ruta)
+
+
+class DecisionIn(BaseModel):
+    decision: DecisionFinal
 
 
 class ReclasificarDocumento(BaseModel):

@@ -15,6 +15,7 @@ from app.db.session import Base
 from app.db.tipos import JSONCifrado, TextoCifrado
 from app.domain.documentos import AGENTE_POR_TIPO, EstadoClasificacion, FormatoArchivo, TipoDocumental
 from app.domain.estados import (  # noqa: F401  (reexportados para compatibilidad)
+    DecisionFinal,
     EstadoExpediente,
     EstadoExtraccion,
     ResultadoValidacion,
@@ -40,7 +41,7 @@ class Expediente(Base):
     __tablename__ = "expedientes"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    nombre: Mapped[str] = mapped_column(String(255))
+    nombre: Mapped[str] = mapped_column(TextoCifrado("expedientes.nombre"))
     origen: Mapped[str] = mapped_column(String(20))  # carpeta | zip
     estado: Mapped[EstadoExpediente] = mapped_column(
         enum_col(EstadoExpediente), default=EstadoExpediente.CARGADO
@@ -49,9 +50,13 @@ class Expediente(Base):
     actualizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=ahora, onupdate=ahora
     )
+    # Decisión de la persona que revisa; independiente de `estado` (que lo mueven los agentes).
+    decision_final: Mapped[DecisionFinal | None] = mapped_column(enum_col(DecisionFinal))
+    decidido_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decidido_por: Mapped[str | None] = mapped_column(String(255))  # entidad del token; null sin autenticación
 
     documentos: Mapped[list["Documento"]] = relationship(
-        back_populates="expediente", cascade="all, delete-orphan", order_by="Documento.ruta"
+        back_populates="expediente", cascade="all, delete-orphan"
     )
     rechazados: Mapped[list["ArchivoRechazado"]] = relationship(
         back_populates="expediente", cascade="all, delete-orphan"
@@ -91,9 +96,9 @@ class Documento(Base):
     expediente_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("expedientes.id", ondelete="CASCADE"), index=True
     )
-    nombre: Mapped[str] = mapped_column(String(255))
-    ruta: Mapped[str] = mapped_column(String(1024))  # ruta relativa dentro del expediente
-    ruta_almacenamiento: Mapped[str] = mapped_column(String(1024))  # ruta absoluta en el volumen
+    nombre: Mapped[str] = mapped_column(TextoCifrado("documentos.nombre"))
+    ruta: Mapped[str] = mapped_column(TextoCifrado("documentos.ruta"))  # ruta relativa dentro del expediente
+    ruta_almacenamiento: Mapped[str] = mapped_column(String(1024))  # archivo cifrado en el volumen, con nombre aleatorio
     tamano: Mapped[int] = mapped_column(BigInteger)
     paginas: Mapped[int]  # las imágenes cuentan como 1
     formato: Mapped[FormatoArchivo] = mapped_column(
@@ -130,7 +135,7 @@ class ArchivoRechazado(Base):
     expediente_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("expedientes.id", ondelete="CASCADE"), index=True
     )
-    ruta: Mapped[str] = mapped_column(String(1024))
+    ruta: Mapped[str] = mapped_column(TextoCifrado("archivos_rechazados.ruta"))
     motivo: Mapped[str] = mapped_column(String(500))
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
