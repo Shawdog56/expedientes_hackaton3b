@@ -25,6 +25,9 @@ services:
       OLLAMA_NUM_PARALLEL: "1"
       OLLAMA_MAX_LOADED_MODELS: "1"
       OLLAMA_KEEP_ALIVE: "-1"
+      # Al arrancar, Ollama borra los archivos que no reconoce. Con el volumen compartido, una
+      # instancia que se reinicia borraría la descarga en curso de la otra.
+      OLLAMA_NOPRUNE: "1"
     volumes:
       - ollama_data:/root/.ollama
 
@@ -36,7 +39,23 @@ services:
       - ollama-1
     environment:
       - OLLAMA_HOST=http://ollama-1:11434
-    entrypoint: ["sh", "-c", "echo 'Descargando modelo qwen2.5:3b en Ollama...' && ollama pull qwen2.5:3b"]
+    volumes:
+      - ollama_data:/root/.ollama
+    # Espera a que ollama-1 acepte conexiones y reintenta si la descarga se corta (Ollama la
+    # reanuda). Si un intento falla, borra los parciales por si quedaron dañados y empieza limpio.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        for i in $$(seq 1 60); do ollama list >/dev/null 2>&1 && break; sleep 2; done
+        for intento in 1 2 3 4 5; do
+          echo "Descargando modelo qwen2.5:3b en Ollama (intento $$intento)..."
+          ollama pull qwen2.5:3b && exit 0
+          echo "La descarga falló; se descartan los archivos parciales y se reintenta."
+          rm -f /root/.ollama/models/blobs/*-partial*
+          sleep 5
+        done
+        exit 1
 
   backend:
     build: ./backend

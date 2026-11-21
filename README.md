@@ -24,8 +24,27 @@ docker-compose.yml   db (PostgreSQL 17) + backend + frontend
 
 ## Levantar
 
+Con Docker Desktop abierto, desde la raíz del repositorio:
+
 ```powershell
-copy backend\.env.example backend\.env   # opcional
+powershell -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+El script comprueba Docker, crea `backend/.env` con claves de cifrado nuevas si no existen, descarga las imágenes, instala las dependencias de backend y frontend, levanta todos los contenedores, descarga el modelo de lenguaje (unos 2 GB la primera vez) y espera a que todo responda. Se puede repetir sin riesgo.
+
+| Opción | Para qué |
+|---|---|
+| `.\run.ps1 -Logs` | Ver los registros en vivo |
+| `.\run.ps1 -Detener` | Detener todo (los datos se conservan) |
+| `.\run.ps1 -Reconstruir` | Reconstruir las imágenes sin caché tras cambiar dependencias |
+| `.\run.ps1 -SinEsperarModelo` | No esperar a que termine la descarga del modelo |
+
+Cada persona genera sus propias claves en su `backend/.env`. Guarda una copia: sin ellas no se pueden leer los expedientes cifrados de tu entorno.
+
+A mano, sin el script:
+
+```powershell
+copy backend\.env.example backend\.env
 docker compose up --build
 ```
 
