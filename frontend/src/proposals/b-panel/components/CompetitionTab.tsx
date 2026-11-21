@@ -318,13 +318,23 @@ export function CompetitionTab() {
           <ul className="divide-y divide-border">
             {porCadena.map(([cadena, info]) => (
               <li key={cadena} className="flex items-center gap-3 px-4 py-3">
-                <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-                  style={{ backgroundColor: CADENAS[cadena].color }}
-                  aria-hidden="true"
-                >
-                  {CADENAS[cadena].nombre.charAt(0)}
-                </span>
+                {LOGOS_CADENA[cadena] ? (
+                  <img
+                    src={LOGOS_CADENA[cadena]}
+                    alt=""
+                    aria-hidden="true"
+                    className="h-8 w-8 shrink-0 rounded-full border bg-white object-contain p-0.5"
+                    style={{ borderColor: CADENAS[cadena].color }}
+                  />
+                ) : (
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                    style={{ backgroundColor: CADENAS[cadena].color }}
+                    aria-hidden="true"
+                  >
+                    {CADENAS[cadena].nombre.charAt(0)}
+                  </span>
+                )}
                 <span className="flex-1 truncate text-sm font-medium text-ink">{CADENAS[cadena].nombre}</span>
                 <span className="text-xs text-muted">más cercana a {Math.round(info.masCercana)} m</span>
                 <span className="text-sm font-semibold text-ink">{info.cantidad}</span>

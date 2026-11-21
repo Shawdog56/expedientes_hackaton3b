@@ -10,10 +10,15 @@ export function PanelApp() {
   const { analisis, indiceActual, corriendo, terminado, iniciar, reiniciar } = useSimulatedAnalysis();
 
   const enAnalisis = corriendo || terminado;
+  const estadoHeader = terminado ? 'completo' : corriendo ? 'analizando' : 'listo';
 
   return (
     <div className="min-h-screen bg-bg pb-20">
-      <PanelHeader />
+      <PanelHeader
+        estado={estadoHeader}
+        expedienteActual={Math.max(indiceActual + 1, 1)}
+        totalExpedientes={analisis.length}
+      />
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[320px_1fr]">
         <PanelSidebar expedientesActuales={expedientes} onExpedientesCargados={agregarExpedientes} />
         {enAnalisis ? (

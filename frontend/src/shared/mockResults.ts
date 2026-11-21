@@ -185,7 +185,12 @@ export const HALLAZGOS_CRUZADOS: HallazgoCruzado[] = [
 ];
 
 /** Resumen textual del dictamen. Determinista: no varía entre expedientes. */
-export function obtenerResumenDictamen(dictamen: Dictamen): { confianza: Confianza; porQue: string } {
+export function obtenerResumenDictamen(
+  dictamen: Dictamen,
+  opciones?: { documentosFaltantes?: string[] },
+): { confianza: Confianza; porQue: string } {
+  const faltantes = opciones?.documentosFaltantes ?? [];
+
   if (dictamen === 'cumple') {
     return {
       confianza: 'alta',
@@ -197,6 +202,12 @@ export function obtenerResumenDictamen(dictamen: Dictamen): { confianza: Confian
     return {
       confianza: 'baja',
       porQue: 'Se detectaron inconsistencias que impiden validar el expediente con la información disponible.',
+    };
+  }
+  if (faltantes.length > 0) {
+    return {
+      confianza: 'media',
+      porQue: `Falta ${faltantes.join(', ')} en el expediente. No se descarta: el resto de la documentación sí se validó, pero no puede concluirse el dictamen sin ese documento.`,
     };
   }
   return {
@@ -212,3 +223,109 @@ export const UBICACION_EJEMPLO = {
   coincide: true,
   coordenadas: { lat: 19.3773, lng: -99.1663 },
 };
+
+/** Escenario de ejemplo por posición del expediente en el lote (determinista). */
+export interface EscenarioExpediente {
+  documentoFaltante: TipoDocumentalId | null;
+  archivosNoReconocidos: string[];
+}
+
+const ESCENARIOS_EJEMPLO: EscenarioExpediente[] = [
+  { documentoFaltante: null, archivosNoReconocidos: [] },
+  { documentoFaltante: 'uso_suelo', archivosNoReconocidos: ['plano_fachada.pdf'] },
+];
+
+/** El primer expediente es el caso principal; el segundo ilustra un documento faltante. */
+export function obtenerEscenario(indice: number): EscenarioExpediente {
+  return ESCENARIOS_EJEMPLO[indice] ?? { documentoFaltante: null, archivosNoReconocidos: [] };
+}
+
+export interface CeldaComparacion {
+  reglaId: string;
+}
+
+export interface FilaComparacionCruzada {
+  id: string;
+  etiqueta: string;
+  celdas: Partial<Record<TipoDocumentalId, CeldaComparacion>>;
+  coincide: boolean;
+  discrepante?: TipoDocumentalId;
+  notaTolerancia?: string;
+}
+
+/**
+ * Tabla de validación cruzada (pestaña "Validación cruzada"). Cada celda
+ * referencia un punto de `EVIDENCIA_POR_PUNTO` (no duplica el valor/fragmento).
+ * Caso principal: solo "Superficie" no coincide.
+ */
+export const COMPARACION_CRUZADA: FilaComparacionCruzada[] = [
+  {
+    id: 'direccion',
+    etiqueta: 'Dirección',
+    coincide: true,
+    celdas: {
+      escrituras: { reglaId: 'direccion' },
+      predial: { reglaId: 'direccion' },
+      alineamiento: { reglaId: 'direccion_oficial' },
+      uso_suelo: { reglaId: 'direccion' },
+    },
+  },
+  {
+    id: 'propietario',
+    etiqueta: 'Propietario o titular',
+    coincide: true,
+    celdas: {
+      escrituras: { reglaId: 'titular' },
+      predial: { reglaId: 'contribuyente' },
+    },
+  },
+  {
+    id: 'superficie',
+    etiqueta: 'Superficie',
+    coincide: false,
+    discrepante: 'predial',
+    notaTolerancia: 'Tolerancia aceptada: 1%',
+    celdas: {
+      escrituras: { reglaId: 'superficie' },
+      predial: { reglaId: 'superficie_registrada' },
+      uso_suelo: { reglaId: 'superficie_aplicable' },
+    },
+  },
+  {
+    id: 'numero_oficial',
+    etiqueta: 'Número oficial',
+    coincide: true,
+    celdas: {
+      alineamiento: { reglaId: 'numero_oficial' },
+    },
+  },
+  {
+    id: 'identificacion_predio',
+    etiqueta: 'Identificación del predio',
+    coincide: true,
+    celdas: {
+      predial: { reglaId: 'clave_predial' },
+      alineamiento: { reglaId: 'identificacion_predio' },
+    },
+  },
+];
+
+export interface DatoFicha {
+  id: string;
+  etiqueta: string;
+  tipoId: TipoDocumentalId;
+  reglaId: string;
+}
+
+/** Ficha del inmueble (pestaña "Datos extraídos"). Cada dato referencia un punto de EVIDENCIA_POR_PUNTO. */
+export const FICHA_INMUEBLE: DatoFicha[] = [
+  { id: 'propietario', etiqueta: 'Propietario o titular', tipoId: 'escrituras', reglaId: 'titular' },
+  { id: 'direccion', etiqueta: 'Dirección', tipoId: 'alineamiento', reglaId: 'direccion_oficial' },
+  { id: 'superficie', etiqueta: 'Superficie del terreno', tipoId: 'predial', reglaId: 'superficie_registrada' },
+  { id: 'clave_predial', etiqueta: 'Cuenta o clave predial', tipoId: 'predial', reglaId: 'clave_predial' },
+  { id: 'numero_oficial', etiqueta: 'Número oficial', tipoId: 'alineamiento', reglaId: 'numero_oficial' },
+  { id: 'uso_autorizado', etiqueta: 'Uso de suelo autorizado', tipoId: 'uso_suelo', reglaId: 'uso_autorizado' },
+  { id: 'compatibilidad', etiqueta: 'Compatibilidad con uso comercial', tipoId: 'uso_suelo', reglaId: 'compatibilidad' },
+  { id: 'vigencia_uso_suelo', etiqueta: 'Vigencia del Uso de Suelo', tipoId: 'uso_suelo', reglaId: 'vigencia' },
+  { id: 'autoridad_emisora', etiqueta: 'Autoridad emisora', tipoId: 'uso_suelo', reglaId: 'autoridad_emisora' },
+];

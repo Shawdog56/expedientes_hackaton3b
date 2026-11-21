@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { obtenerEscenario } from './mockResults';
 import type { Expediente } from './types/expediente';
 import {
   ETAPAS,
@@ -22,6 +23,7 @@ export interface DocumentoAnalisis {
   tipoId: TipoDocumentalId;
   nombre: string;
   archivoEjemplo: string;
+  faltante: boolean;
   reglas: EstadoRegla[];
 }
 
@@ -35,19 +37,22 @@ export interface ExpedienteAnalisis {
   progreso: number;
   documentoEnValidacion: TipoDocumentalId | null;
   documentos: DocumentoAnalisis[];
+  archivosNoReconocidos: string[];
   dictamen: Dictamen | null;
 }
 
-function crearDocumentosIniciales(): DocumentoAnalisis[] {
+function crearDocumentosIniciales(faltante: TipoDocumentalId | null): DocumentoAnalisis[] {
   return REGLAS_VALIDACION.map((tipo) => ({
     tipoId: tipo.id,
     nombre: tipo.nombre,
     archivoEjemplo: tipo.archivoEjemplo,
+    faltante: tipo.id === faltante,
     reglas: tipo.reglas.map((regla) => ({ id: regla.id, etiqueta: regla.etiqueta, estado: 'pendiente' as const })),
   }));
 }
 
-function crearExpedienteAnalisis(expediente: Expediente): ExpedienteAnalisis {
+function crearExpedienteAnalisis(expediente: Expediente, indice: number): ExpedienteAnalisis {
+  const escenario = obtenerEscenario(indice);
   return {
     expedienteId: expediente.id,
     nombre: expediente.nombre,
@@ -55,13 +60,13 @@ function crearExpedienteAnalisis(expediente: Expediente): ExpedienteAnalisis {
     etapasCompletadas: [],
     progreso: 0,
     documentoEnValidacion: null,
-    documentos: crearDocumentosIniciales(),
+    documentos: crearDocumentosIniciales(escenario.documentoFaltante),
+    archivosNoReconocidos: escenario.archivosNoReconocidos,
     dictamen: null,
   };
 }
 
 const TODAS_LAS_ETAPAS = ETAPAS.map((etapa) => etapa.id);
-const TOTAL_PUNTOS = REGLAS_VALIDACION.reduce((total, tipo) => total + tipo.reglas.length, 0);
 
 /**
  * Simula el análisis multiagente de una lista de expedientes, uno por uno,
@@ -134,7 +139,7 @@ export function useSimulatedAnalysis() {
 
       canceladoRef.current = false;
       limpiarTimers();
-      setAnalisis(expedientes.map(crearExpedienteAnalisis));
+      setAnalisis(expedientes.map((expediente, indice) => crearExpedienteAnalisis(expediente, indice)));
       setTerminado(false);
       setCorriendo(true);
 
@@ -160,8 +165,12 @@ export function useSimulatedAnalysis() {
           progreso: 40,
         });
 
+        const documentoFaltante = obtenerEscenario(indice).documentoFaltante;
+        const tiposAValidar = REGLAS_VALIDACION.filter((tipo) => tipo.id !== documentoFaltante);
+        const totalPuntosExpediente = tiposAValidar.reduce((total, tipo) => total + tipo.reglas.length, 0);
+
         let puntosResueltos = 0;
-        for (const tipo of REGLAS_VALIDACION) {
+        for (const tipo of tiposAValidar) {
           if (canceladoRef.current) return;
           actualizarExpediente(indice, { documentoEnValidacion: tipo.id });
 
@@ -173,7 +182,9 @@ export function useSimulatedAnalysis() {
 
             actualizarRegla(indice, tipo.id, regla.id, resultadoEjemploRegla(tipo.id, regla.id));
             puntosResueltos += 1;
-            actualizarExpediente(indice, { progreso: 40 + (puntosResueltos / TOTAL_PUNTOS) * 20 });
+            actualizarExpediente(indice, {
+              progreso: totalPuntosExpediente > 0 ? 40 + (puntosResueltos / totalPuntosExpediente) * 20 : 60,
+            });
           }
         }
         actualizarExpediente(indice, { documentoEnValidacion: null });
@@ -202,7 +213,10 @@ export function useSimulatedAnalysis() {
           const hayRevisar = expedienteActual.documentos.some((documento) =>
             documento.reglas.some((regla) => regla.estado === 'revisar'),
           );
-          const dictamen: Dictamen = hayNoCumple ? 'no_cumple' : hayRevisar ? 'revision' : 'cumple';
+          const hayFaltante = expedienteActual.documentos.some((documento) => documento.faltante);
+          // Un documento faltante nunca degrada a "no cumple": el reto penaliza descartar
+          // expedientes que sí podían continuar su revisión.
+          const dictamen: Dictamen = hayNoCumple ? 'no_cumple' : hayRevisar || hayFaltante ? 'revision' : 'cumple';
 
           return actuales.map((item, i) =>
             i === indice

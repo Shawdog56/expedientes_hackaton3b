@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import type { ExpedienteAnalisis } from '../../../shared/useSimulatedAnalysis';
 import { CompetitionTab } from './CompetitionTab';
+import { CrossValidationTab } from './CrossValidationTab';
 import { DictamenBanner } from './DictamenBanner';
 import { DocumentCard } from './DocumentCard';
+import { DocumentosResumen } from './DocumentosResumen';
 import { ExpedienteSwitcher } from './ExpedienteSwitcher';
-import { FindingDrawer, type PuntoSeleccionado } from './FindingDrawer';
+import { ExtractedDataTab } from './ExtractedDataTab';
+import { FindingDrawer, type SeleccionHallazgo } from './FindingDrawer';
 import { StageBar } from './StageBar';
 
 interface Props {
@@ -14,7 +17,14 @@ interface Props {
   onReiniciar: () => void;
 }
 
-type Pestana = 'validaciones' | 'competencia';
+type Pestana = 'validaciones' | 'cruzada' | 'datos' | 'competencia';
+
+const PESTANAS: { id: Pestana; etiqueta: string }[] = [
+  { id: 'validaciones', etiqueta: 'Validaciones' },
+  { id: 'cruzada', etiqueta: 'Validación cruzada' },
+  { id: 'datos', etiqueta: 'Datos extraídos' },
+  { id: 'competencia', etiqueta: 'Zona y competencia' },
+];
 
 export function ValidationView({ analisis, indiceActual, terminado, onReiniciar }: Props) {
   // Mientras corre, la selección sigue al expediente en curso (derivado, sin
@@ -33,7 +43,7 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
       : 0;
 
   const [pestana, setPestana] = useState<Pestana>('validaciones');
-  const [puntoAbierto, setPuntoAbierto] = useState<PuntoSeleccionado | null>(null);
+  const [hallazgoAbierto, setHallazgoAbierto] = useState<SeleccionHallazgo | null>(null);
 
   const seleccionarExpediente = (indice: number) => {
     setSeleccionManual(indice);
@@ -44,9 +54,11 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
   if (!actual) return null;
 
   const finalizado = actual.dictamen !== null;
+  const documentosFaltantes = actual.documentos.filter((documento) => documento.faltante).map((d) => d.nombre);
 
   const bloqueValidaciones = (
     <div className="space-y-5">
+      <DocumentosResumen documentos={actual.documentos} archivosNoReconocidos={actual.archivosNoReconocidos} />
       <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
         <StageBar
           etapaActual={actual.etapaActual}
@@ -61,7 +73,7 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
             documento={documento}
             enValidacion={actual.documentoEnValidacion === documento.tipoId}
             interactivo={finalizado}
-            onAbrirPunto={setPuntoAbierto}
+            onAbrirPunto={setHallazgoAbierto}
           />
         ))}
       </div>
@@ -95,55 +107,48 @@ export function ValidationView({ analisis, indiceActual, terminado, onReiniciar 
       </div>
 
       {finalizado && actual.dictamen && (
-        <DictamenBanner dictamen={actual.dictamen} totalDocumentos={actual.documentos.length} />
+        <DictamenBanner
+          dictamen={actual.dictamen}
+          totalDocumentos={actual.documentos.length}
+          documentosFaltantes={documentosFaltantes}
+        />
       )}
 
       {finalizado ? (
         <div>
-          <div role="tablist" aria-label="Secciones del expediente" className="flex gap-1 border-b border-border">
-            <button
-              type="button"
-              role="tab"
-              id="tab-validaciones"
-              aria-selected={pestana === 'validaciones'}
-              aria-controls="panel-validaciones"
-              onClick={() => setPestana('validaciones')}
-              className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                pestana === 'validaciones' ? 'border-brand text-ink' : 'border-transparent text-muted hover:text-ink'
-              }`}
-            >
-              Validaciones
-            </button>
-            <button
-              type="button"
-              role="tab"
-              id="tab-competencia"
-              aria-selected={pestana === 'competencia'}
-              aria-controls="panel-competencia"
-              onClick={() => setPestana('competencia')}
-              className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                pestana === 'competencia' ? 'border-brand text-ink' : 'border-transparent text-muted hover:text-ink'
-              }`}
-            >
-              Zona y competencia
-            </button>
+          <div role="tablist" aria-label="Secciones del expediente" className="flex flex-wrap gap-1 border-b border-border">
+            {PESTANAS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                id={`tab-${item.id}`}
+                aria-selected={pestana === item.id}
+                aria-controls={`panel-${item.id}`}
+                onClick={() => setPestana(item.id)}
+                className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  pestana === item.id ? 'border-brand text-ink' : 'border-transparent text-muted hover:text-ink'
+                }`}
+              >
+                {item.etiqueta}
+              </button>
+            ))}
           </div>
 
-          {pestana === 'validaciones' ? (
-            <div role="tabpanel" id="panel-validaciones" aria-labelledby="tab-validaciones" className="pt-4">
-              {bloqueValidaciones}
-            </div>
-          ) : (
-            <div role="tabpanel" id="panel-competencia" aria-labelledby="tab-competencia" className="pt-4">
-              <CompetitionTab />
-            </div>
-          )}
+          <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`tab-${pestana}`} className="pt-4">
+            {pestana === 'validaciones' && bloqueValidaciones}
+            {pestana === 'cruzada' && (
+              <CrossValidationTab documentos={actual.documentos} onAbrirFila={setHallazgoAbierto} />
+            )}
+            {pestana === 'datos' && <ExtractedDataTab documentos={actual.documentos} onAbrirDato={setHallazgoAbierto} />}
+            {pestana === 'competencia' && <CompetitionTab />}
+          </div>
         </div>
       ) : (
         bloqueValidaciones
       )}
 
-      <FindingDrawer punto={puntoAbierto} onCerrar={() => setPuntoAbierto(null)} />
+      <FindingDrawer seleccion={hallazgoAbierto} onCerrar={() => setHallazgoAbierto(null)} />
     </div>
   );
 }

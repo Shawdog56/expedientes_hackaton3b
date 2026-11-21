@@ -1,5 +1,5 @@
 import { CircleCheck, CircleX, TriangleAlert } from 'lucide-react';
-import { obtenerResumenDictamen } from '../../../shared/mockResults';
+import { obtenerResumenDictamen, type Confianza } from '../../../shared/mockResults';
 import type { Dictamen } from '../../../shared/useSimulatedAnalysis';
 
 interface ChipProps {
@@ -34,6 +34,7 @@ export function DictamenChip({ dictamen }: ChipProps) {
 interface Props {
   dictamen: Dictamen;
   totalDocumentos: number;
+  documentosFaltantes: string[];
 }
 
 const FONDO_POR_DICTAMEN: Record<Dictamen, string> = {
@@ -42,16 +43,39 @@ const FONDO_POR_DICTAMEN: Record<Dictamen, string> = {
   no_cumple: 'border-error/30 bg-error/10',
 };
 
-export function DictamenBanner({ dictamen, totalDocumentos }: Props) {
-  const { confianza, porQue } = obtenerResumenDictamen(dictamen);
+const NIVEL_CONFIANZA: Record<Confianza, number> = { alta: 3, media: 2, baja: 1 };
+
+function IndicadorConfianza({ confianza }: { confianza: Confianza }) {
+  const nivel = NIVEL_CONFIANZA[confianza];
+
+  return (
+    <span
+      className="inline-flex items-center gap-1.5"
+      title="Qué tan seguros estamos de los datos leídos de los documentos"
+    >
+      <span className="flex items-end gap-0.5" aria-hidden="true">
+        {[1, 2, 3].map((barra) => (
+          <span
+            key={barra}
+            className={`w-1 rounded-sm ${barra <= nivel ? 'bg-ink' : 'bg-border'}`}
+            style={{ height: `${barra * 4 + 4}px` }}
+          />
+        ))}
+      </span>
+      <span className="text-sm text-muted">Confianza: {confianza}</span>
+    </span>
+  );
+}
+
+export function DictamenBanner({ dictamen, totalDocumentos, documentosFaltantes }: Props) {
+  const { confianza, porQue } = obtenerResumenDictamen(dictamen, { documentosFaltantes });
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <DictamenChip dictamen={dictamen} />
-        <span className="text-sm text-muted">
-          {totalDocumentos} documentos · confianza del análisis: {confianza}
-        </span>
+        <span className="text-sm text-muted">{totalDocumentos} documentos</span>
+        <IndicadorConfianza confianza={confianza} />
       </div>
       <div className={`rounded-lg border px-4 py-3 ${FONDO_POR_DICTAMEN[dictamen]}`}>
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Por qué</p>
